@@ -249,12 +249,16 @@ def main():
     console = Console(force_terminal=True, theme=custom_theme, color_system="truecolor")
 
     with console.pager(styles=True):
-        # Validate regex
+
+        # Validate the incoming regexp
         try:
             flags = re.IGNORECASE if args.ignore_case else 0
+            # Strip '"' & '"' from args.pattern
+            args.pattern = args.pattern.strip('"').strip("'")
             regex = re.compile(args.pattern, flags)
         except re.error as e:
-            print(f"Invalid regular expression: {e}", file=sys.stderr)
+            console.print(f"[red][bold]\nThe Regular Expression Pattern is Invalid:[/bold][/red]\n" +
+                          f"  [yellow]- {e}[/yellow]\n")
             sys.exit(2)
 
         all_packages = get_packages(args.refresh_cache)
@@ -275,6 +279,9 @@ def main():
         console.print(f"[bold cyan]Found {len(matches):,} matches![/bold cyan]\n")
 
         for i, pkg in enumerate(matches, 1):
+            if len(pkg) > 50:
+                # Snip junk files...
+                pkg = pkg[:50] + "..."
             if i > max_desc and args.desc:
                 console.print(f"[red] *** Max Descriptions Reached. *** [/red]")
                 break
