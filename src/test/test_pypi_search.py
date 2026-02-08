@@ -2,7 +2,9 @@ import pytest
 from unittest.mock import patch, MagicMock
 import sys
 from pathlib import Path
-from io import StringIO\nfrom requests.exceptions import RequestException\nimport re
+from io import StringIO
+from requests.exceptions import RequestException
+import re
 
 from src.pypi_search import (
     main,
