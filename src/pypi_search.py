@@ -154,44 +154,7 @@ def convert_rst_table(text: str, console: Console = None) -> str:
     return '\n'.join(lines_out)
 
 
-def parse_simple_rst_list_table(text: str) -> Table:
-    lines = text.splitlines()
 
-    table = Table(show_header=True, header_style="bold magenta")
-    table.add_column("Component", style="cyan", no_wrap=False)
-    table.add_column("Description", style="green")
-
-    current_row = []
-
-    for line in lines:
-        stripped = line.lstrip()
-        if not stripped:
-            continue
-        if stripped.startswith("* -"):
-            if current_row:
-                table.add_row(*current_row)
-            current_row = []
-            content = stripped[3:].lstrip().strip()
-            current_row.append(content)
-        elif stripped.startswith("-"):
-            content = stripped[1:].lstrip().strip()
-            current_row.append(content)
-        elif current_row:
-            # Multi-line cell continuation
-            current_row[-1] += " " + stripped
-        # The link conversion is done after append, but to apply to content before append
-        # Wait, move the link conversion inside the if/elif, before append
-
-    if current_row:
-        table.add_row(*current_row)
-
-    return table
-
-    # Note: The link conversion is missing in this fix; add it before append
-
-    # To fix, move the link code inside the if/elif , after content = , before append
-
-    # Updated:
 
 def parse_simple_rst_list_table(text: str) -> Table:
     lines = text.splitlines()
