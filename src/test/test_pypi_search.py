@@ -5,6 +5,7 @@ from pathlib import Path
 from io import StringIO
 from requests.exceptions import RequestException
 import re
+import time
 
 from src.pypi_search import (
     main,
@@ -32,47 +33,47 @@ def capsys_disabled(capfd):
     pass
 
 class TestCacheUtils:
-    def test_ensure_cache_dir(self):
-        from unittest.mock import patch
-        mock_mkdir = patch.object(CACHE_DIR, 'mkdir')
-        with mock_mkdir as m:
-            ensure_cache_dir()
-        m.assert_called_once_with(parents=True, exist_ok=True)
+    def test_ensure_cache_dir(self, tmp_path, monkeypatch):
+        test_cache_dir = tmp_path / ".cache" / "pypi_search"
+        monkeypatch.setattr('src.pypi_search.CACHE_DIR', test_cache_dir)
+        assert not test_cache_dir.exists()
+        ensure_cache_dir()
+        assert test_cache_dir.exists()
 
-    def test_is_cache_valid_no_file(self):
-        with patch.object(CACHE_FILE, 'exists', return_value=False):
-            assert not is_cache_valid()
-
-    def test_is_cache_valid_recent(self, monkeypatch):
-        mock_stat = MagicMock()
-        mock_stat.st_mtime = 0
-        monkeypatch.setattr('time.time', lambda: 1000)
-        monkeypatch.setattr(CACHE_FILE, 'exists', MagicMock(return_value=True))
-        monkeypatch.setattr(CACHE_FILE, 'stat', lambda: mock_stat)
-        assert is_cache_valid()
-
-    def test_is_cache_valid_old(self, monkeypatch):
-        mock_stat = MagicMock()
-        mock_stat.st_mtime = 0
-        monkeypatch.setattr('time.time', lambda: CACHE_MAX_AGE_SECONDS * 2)
-        monkeypatch.setattr(CACHE_FILE, 'exists', MagicMock(return_value=True))
-        monkeypatch.setattr(CACHE_FILE, 'stat', lambda: mock_stat)
+    def test_is_cache_valid_no_file(self, tmp_path, monkeypatch):
+        test_cache_file = tmp_path / "test.cache"
+        monkeypatch.setattr('src.pypi_search.CACHE_FILE', test_cache_file)
+        # no write, so not exists
         assert not is_cache_valid()
 
-    def test_load_cached_packages(self, tmp_path):
-        cache_path = tmp_path / "test.cache"
-        cache_path.write_text("pkg1\npkg2\n\n\npkg3")
-        with patch.object(CACHE_FILE, 'open', lambda *a, **k: open(cache_path)):
-            pkgs = load_cached_packages()
+    def test_is_cache_valid_recent(self, tmp_path, monkeypatch):
+        test_cache_file = tmp_path / "test.cache"
+        monkeypatch.setattr('src.pypi_search.CACHE_FILE', test_cache_file)
+        now = time.time()
+        monkeypatch.setattr('time.time', lambda: now)
+        test_cache_file.touch(mtime=now - 100)
+        assert is_cache_valid()
+
+    def test_is_cache_valid_old(self, tmp_path, monkeypatch):
+        test_cache_file = tmp_path / "test.cache"
+        monkeypatch.setattr('src.pypi_search.CACHE_FILE', test_cache_file)
+        now = time.time()
+        monkeypatch.setattr('time.time', lambda: now)
+        test_cache_file.touch(mtime=now - CACHE_MAX_AGE_SECONDS * 2)
+        assert not is_cache_valid()
+
+    def test_load_cached_packages(self, tmp_path, monkeypatch):
+        test_cache_file = tmp_path / "test.cache"
+        monkeypatch.setattr('src.pypi_search.CACHE_FILE', test_cache_file)
+        test_cache_file.write_text("pkg1\npkg2\n\n\npkg3")
+        pkgs = load_cached_packages()
         assert pkgs == ["pkg1", "pkg2", "pkg3"]
 
-    def test_save_packages_to_cache(self, tmp_path):
-        cache_path = tmp_path / "test.cache"
-        with patch.object(CACHE_FILE, 'open', lambda *a, **k: open(cache_path, 'w')):
-            save_packages_to_cache(["pkg2", "pkg1", "pkg3"])
-        with open(cache_path) as f:
-            content = f.read()
-        assert content == "pkg1\npkg2\npkg3\n"
+    def test_save_packages_to_cache(self, tmp_path, monkeypatch):
+        test_cache_file = tmp_path / "test.cache"
+        monkeypatch.setattr('src.pypi_search.CACHE_FILE', test_cache_file)
+        save_packages_to_cache(["pkg2", "pkg1", "pkg3"])
+        assert test_cache_file.read_text() == "pkg1\npkg2\npkg3\n"
 
 class TestFetchAllPackageNames:
     def test_success(self):
