@@ -52,7 +52,8 @@ class TestCacheUtils:
         monkeypatch.setattr('src.pypi_search.CACHE_FILE', test_cache_file)
         now = time.time()
         monkeypatch.setattr('time.time', lambda: now)
-        test_cache_file.touch(mtime=now - 100)
+        test_cache_file.write_text('')
+        os.utime(str(test_cache_file), (now - 100, now - 100))
         assert is_cache_valid()
 
     def test_is_cache_valid_old(self, tmp_path, monkeypatch):
@@ -60,7 +61,8 @@ class TestCacheUtils:
         monkeypatch.setattr('src.pypi_search.CACHE_FILE', test_cache_file)
         now = time.time()
         monkeypatch.setattr('time.time', lambda: now)
-        test_cache_file.touch(mtime=now - CACHE_MAX_AGE_SECONDS * 2)
+        test_cache_file.write_text('')
+        os.utime(str(test_cache_file), (now - CACHE_MAX_AGE_SECONDS * 2, now - CACHE_MAX_AGE_SECONDS * 2))
         assert not is_cache_valid()
 
     def test_load_cached_packages(self, tmp_path, monkeypatch):
@@ -102,7 +104,7 @@ class TestFetchProjectDetails:
         assert "**Homepage:** [https://example.com](https://example.com)" in md
         assert "**Release:** [https://files.example](https://files.example)" in md
         assert "**Bug Tracker:** [https://issues.example](https://issues.example)" in md
-        assert "\*\*Classifiers:\*\*\\n- License :: OSI Approved" in md
+        assert "**Classifiers:**\n- License :: OSI Approved" in md
         assert "**Summary:** Test pkg" in md
         assert "**Description:**" in md
 
