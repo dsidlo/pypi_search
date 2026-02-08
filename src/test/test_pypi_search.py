@@ -20,7 +20,13 @@ from src.pypi_search import (
     CACHE_FILE,
     CACHE_DIR,
     CACHE_MAX_AGE_SECONDS,
+    convert_rst_table,
+    parse_simple_rst_list_table,
+    rich_table_to_markdown,
 )
+
+from rich.table import Table
+from rich.console import Console
 
 
 def strip_ansi(text):
@@ -143,33 +149,160 @@ class TestMain:
         captured = capsys.readouterr()
         assert "No matching packages found." in strip_ansi(captured.out)
 
-    @patch('src.pypi_search.get_packages', return_value=["pkg1", "pkg2"])
+    @patch('src.pypi_search.get_packages', return_value=["pkg1", "pkg1"])
     def test_count_only(self, mock_get, capsys):
-        sys.argv = ['script', '.', '--count-only']
+        sys.argv = ['script', 'pkg1', '--count-only']
         main()
         captured = capsys.readouterr()
         assert "Found 2 matching packages." in strip_ansi(captured.out)
 
-    @patch('src.pypi_search.get_packages', return_value=["pkg1", "pkg2"])
+    @patch('src.pypi_search.get_packages', return_value=["pkg1", "pkg1"])
     @patch('src.pypi_search.fetch_project_details', return_value="## testpkg\n**Version:** `1.0`")
     def test_list_with_desc(self, mock_details, mock_get, capsys):
-        sys.argv = ['script', '.', '--desc']
+        sys.argv = ['script', 'pkg1', '--desc']
         main()
         captured = capsys.readouterr()
         assert "pkg1" in captured.out
-        assert "pkg2" in captured.out
         assert "Version: 1.0" in strip_ansi(captured.out)
         assert "... and 0 more" not in captured.out  # <10
 
-    @patch('src.pypi_search.get_packages', return_value=["pkg1"] * 15)
+    @patch('src.pypi_search.get_packages', return_value=["pkg"] * 15)
     @patch('src.pypi_search.fetch_project_details', return_value="MD")
     def test_list_with_desc_full(self, mock_details, mock_get, capsys):
-        sys.argv = ['script', '.', '--desc', '--full-desc']
+        sys.argv = ['script', 'pkg', '--desc', '--full-desc']
         main()
         captured = capsys.readouterr()
-        assert "pkg1" in captured.out  # all printed
+        assert "pkg" in captured.out  # all printed
         assert "MD" in captured.out  # top 10
         assert "... and 5 more matches" in strip_ansi(captured.out)
+
+
+class TestRSTTableUtils:
+
+    def test_parse_simple_rst_list_table_valid_header(self):
+        rst = """.. list-table::
+           :header-rows: 1
+           
+           * - Component
+             - Description
+           * - Foo
+             - Bar"""
+        table = parse_simple_rst_list_table(rst)
+        md = rich_table_to_markdown(table)
+        assert "| Component | Description |" in md
+        assert "| Foo | Bar |" in md
+
+    def test_parse_simple_rst_list_table_no_header(self):
+        rst = """.. list-table::
+           
+           * - Val1
+             - Val2"""
+        table = parse_simple_rst_list_table(rst)
+        md = rich_table_to_markdown(table)
+        assert "| Val1 | Val2 |" in md
+
+    def test_parse_simple_rst_list_table_with_link(self):
+        rst = """.. list-table::
+           :header-rows: 1
+           
+           * - Header1
+             - Header2
+           * - Text
+             - `Link <https://example.com>`_"""
+        table = parse_simple_rst_list_table(rst)
+        md = rich_table_to_markdown(table)
+        assert "| Header1 | Header2 |" in md
+        assert "| Text | [Link](https://example.com) |" in md
+
+    def test_parse_simple_rst_list_table_continuation(self):
+        rst = """.. list-table::
+           :header-rows: 1
+           
+           * - Header
+             - Desc
+           * - Item1
+             - Line1
+               Continued"""
+        table = parse_simple_rst_list_table(rst)
+        md = rich_table_to_markdown(table)
+        assert "| Header | Desc |" in md
+        assert "| Item1 | Line1 Continued |" in md
+
+    def test_parse_simple_rst_list_table_empty(self):
+        table = parse_simple_rst_list_table("")
+        md = rich_table_to_markdown(table)
+        expected = "| Component | Description |\n| --- | --- |"
+        assert md.strip() == expected.strip()
+
+    def test_rich_table_to_markdown_simple(self):
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("Col1", style="cyan")
+        table.add_column("Col2", style="green")
+        table.add_row("Value1", "Value2|pipe")
+        md = rich_table_to_markdown(table)
+        expected = "| Col1 | Col2 |\n| --- | --- |\n| Value1 | Value2\\|pipe |"
+        assert md.strip() == expected.strip()
+
+    def test_rich_table_to_markdown_empty(self):
+        table = Table()
+        md = rich_table_to_markdown(table)
+        assert md == ""
+
+    def test_rich_table_to_markdown_with_header_no_rows(self):
+        table = Table(show_header=True)
+        table.add_column("Col1")
+        md = rich_table_to_markdown(table)
+        expected = "| Col1 |\n| --- |"
+        assert md.strip() == expected.strip()
+
+    def test_convert_rst_table_with_table(self):
+        text = """Before
+
+.. list-table::
+   :header-rows: 1
+
+   * - A
+     - B
+   * - 1
+     - 2
+
+After"""
+        md = convert_rst_table(text)
+        assert "| Component | Description |" in md
+        assert "| A | B |" in md
+        assert "| 1 | 2 |" in md
+        assert "Before" in md
+        assert "After" in md
+
+    def test_convert_rst_table_no_table(self):
+        text = "Plain text without table."
+        md = convert_rst_table(text)
+        assert md == text
+
+    def test_convert_rst_table_multiple_tables(self):
+        text = """Table1
+
+.. list-table::
+   :header-rows: 1
+   * - C1
+     - C2
+   * - V1
+     - V2
+
+Text
+
+.. list-table::
+   * - D1
+     - D2"""
+        md = convert_rst_table(text)
+        assert md.count("| --- |") == 2  # two tables
+
+    def test_convert_rst_table_invalid_table(self):
+        text = """.. list-table:: invalid
+   * - unbalanced"""
+        md = convert_rst_table(text)
+        # Should not crash, output as is or partial
+        assert "unbalanced" in md
 
 # Run with pytest src/test/test_p.py --cov=src/p
 

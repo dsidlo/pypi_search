@@ -31,8 +31,9 @@ from rich.console import Console
 from rich.markdown import Markdown
 from pathlib import Path
 from bs4 import BeautifulSoup
-from m2r2 import convert
 from rich.theme import Theme
+from rich.table import Table
+
 
 os.environ['PAGER'] = 'less -R'
 
@@ -121,6 +122,154 @@ def convert_rst_code_blocks(text: str):
     return lines
 
 
+def convert_rst_table(text: str, console: Console = None) -> str:
+    re_table = re.compile(r'^.. list-table::', flags=re.IGNORECASE | re.MULTILINE)
+    lines_out = []
+    i = 0
+    text_lines = text.splitlines()
+    while i < len(text_lines):
+        ln = text_lines[i]
+        if re_table.match(ln):
+            # Start collecting table block
+            table_block = [ln]
+            i += 1
+            while i < len(text_lines):
+                next_ln = text_lines[i]
+                stripped = next_ln.lstrip()
+                if stripped.startswith(':header-rows:'):
+                    table_block.append(next_ln)
+                    i += 1
+                    continue
+                if stripped and not stripped.startswith('*') and next_ln.strip() and not next_ln.startswith('  '):
+                    break
+                table_block.append(next_ln)
+                i += 1
+            # Parse the table block
+            table_text = '\n'.join(table_block)
+            md_table = parse_simple_rst_list_table(table_text)
+            lines_out.append(rich_table_to_markdown(md_table, console=console))
+        else:
+            lines_out.append(ln)
+            i += 1
+    return '\n'.join(lines_out)
+
+
+def parse_simple_rst_list_table(text: str) -> Table:
+    lines = text.splitlines()
+
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Component", style="cyan", no_wrap=False)
+    table.add_column("Description", style="green")
+
+    current_row = []
+
+    for line in lines:
+        stripped = line.lstrip()
+        if not stripped:
+            continue
+        if stripped.startswith("* -"):
+            if current_row:
+                table.add_row(*current_row)
+            current_row = []
+            content = stripped[3:].lstrip().strip()
+            current_row.append(content)
+        elif stripped.startswith("-"):
+            content = stripped[1:].lstrip().strip()
+            current_row.append(content)
+        elif current_row:
+            # Multi-line cell continuation
+            current_row[-1] += " " + stripped
+        # The link conversion is done after append, but to apply to content before append
+        # Wait, move the link conversion inside the if/elif, before append
+
+    if current_row:
+        table.add_row(*current_row)
+
+    return table
+
+    # Note: The link conversion is missing in this fix; add it before append
+
+    # To fix, move the link code inside the if/elif , after content = , before append
+
+    # Updated:
+
+def parse_simple_rst_list_table(text: str) -> Table:
+    lines = text.splitlines()
+
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Component", style="cyan", no_wrap=False)
+    table.add_column("Description", style="green")
+
+    current_row = []
+
+    for line in lines:
+        stripped = line.lstrip()
+        if not stripped:
+            continue
+        if stripped.startswith("* -"):
+            if current_row:
+                table.add_row(*current_row)
+            current_row = []
+            content = stripped[3:].lstrip().strip()
+            # Link conversion
+            if content.startswith("`") and "<" in content and ">`_" in content:
+                parts = content.strip("`").rsplit("<", 1)
+                if len(parts) == 2:
+                    text_part = parts[0].strip()
+                    url = parts[1].rstrip(">`_").strip()
+                    content = f"[{text_part}]({url})"
+            current_row.append(content)
+        elif stripped.startswith("-"):
+            content = stripped[1:].lstrip().strip()
+            # Link conversion
+            if content.startswith("`") and "<" in content and ">`_" in content:
+                parts = content.strip("`").rsplit("<", 1)
+                if len(parts) == 2:
+                    text_part = parts[0].strip()
+                    url = parts[1].rstrip(">`_").strip()
+                    content = f"[{text_part}]({url})"
+            current_row.append(content)
+        elif current_row:
+            # Multi-line cell continuation
+            current_row[-1] += " " + stripped
+    if current_row:
+        table.add_row(*current_row)
+
+    return table
+
+
+def rich_table_to_markdown(table: Table, console: Console = None) -> str:
+    if console is None:
+        console = Console()  # fallback – better to pass your real console
+
+    if not table.columns:
+        return ""
+
+    # Headers (using public .header)
+    headers = []
+    for col in table.columns:
+        header_text = console.render_str(str(col.header)).plain.strip()
+        headers.append(header_text)
+
+    lines = ["| " + " | ".join(headers) + " |"]
+    lines.append("| " + " | ".join("---" for _ in headers) + " |")
+
+    # Consume generators into lists
+    cells_by_col = [list(col.cells) for col in table.columns]
+    n_rows = min(len(cells) for cells in cells_by_col) if cells_by_col else 0
+
+    for row_idx in range(n_rows):
+        row_cells = []
+        for j, col in enumerate(table.columns):
+            cell = cells_by_col[j][row_idx]
+            plain = console.render_str(str(cell)).plain.strip()
+            plain = plain.replace("|", "\\|")  # escape markdown pipes
+            row_cells.append(plain or "-")
+        lines.append("| " + " | ".join(row_cells) + " |")
+
+    return "\n".join(lines)
+
+
 def ensure_cache_dir():
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -180,7 +329,7 @@ def get_packages(refresh_cache):
         return packages
 
 
-def fetch_project_details(package_name, include_desc=False):
+def fetch_project_details(package_name, console=None, include_desc=False):
     url = PYPI_JSON_URL
     # Use a regexp to change '{package_name}' to the value in package_name.
     url = re.sub(r'\{package_name\}', package_name, url)
@@ -219,10 +368,8 @@ def fetch_project_details(package_name, include_desc=False):
     if include_desc:
         long_desc = info.get('description', '')
         if long_desc:
-            # Convert RST to Markdown
-            long_desc = convert(long_desc)
+            long_desc = convert_rst_table(long_desc, console)
             long_desc = extract_raw_html_blocks(long_desc)
-            long_desc = convert_rst_code_blocks(long_desc)
             md_parts.append(f"**Full Description:**\n{long_desc}...")
     return '\n\n'.join(md_parts)
 
@@ -255,7 +402,7 @@ def main():
             flags = re.IGNORECASE if args.ignore_case else 0
             # Strip '"' & '"' from args.pattern
             args.pattern = args.pattern.strip('"').strip("'")
-            regex = re.compile(args.pattern, flags)
+            regex = re.compile(f"^{args.pattern}$", flags)
         except re.error as e:
             console.print(f"[red][bold]\nThe Regular Expression Pattern is Invalid:[/bold][/red]\n" +
                           f"  [yellow]- {e}[/yellow]\n")
@@ -288,7 +435,7 @@ def main():
             if args.desc:
                 # String of i space padded to 4 digits
                 console.rule(f"[cyan]{i}.[/] [bold]{pkg}[/bold]")
-                details_md = fetch_project_details(pkg, include_desc=args.full_desc)
+                details_md = fetch_project_details(pkg, console=console, include_desc=args.full_desc)
                 if details_md:
                     # Filter out '.. image::' from details_md
                     details_md = '\n'.join([line for line in details_md.split('\n')
