@@ -16,6 +16,7 @@ from src.pypi_search import (
     save_packages_to_cache,
     ensure_cache_dir,
     CACHE_FILE,
+    CACHE_DIR,
     CACHE_MAX_AGE_SECONDS,
 )
 
