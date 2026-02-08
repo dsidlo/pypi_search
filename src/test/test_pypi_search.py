@@ -106,7 +106,7 @@ class TestFetchProjectDetails:
         assert "**Bug Tracker:** [https://issues.example](https://issues.example)" in md
         assert "**Classifiers:**\n- License :: OSI Approved" in md
         assert "**Summary:** Test pkg" in md
-        assert "**Description:**" in md
+        assert "**Full Description:**" in md
 
     def test_404(self):
         resp = MagicMock(status_code=404)
