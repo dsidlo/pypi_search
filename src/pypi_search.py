@@ -113,7 +113,7 @@ def convert_rst_code_blocks(text: str):
             in_cb = False # Out of CodeBlock
             cb_lns = 0
         if in_cb and cb_lns == 0:
-            lines += ln
+            lines += ln + '\n'
             cb_lns += 1
         else:
             lines += ln + '\n'

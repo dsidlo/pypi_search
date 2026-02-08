@@ -15,7 +15,6 @@ dependencies = [
     "docutils>=0.22.4",
     "hatchling",
     "html2text>=2025.4.15",
-    "m2r2>=0.3.4",
     "pypi>=2.1",
     "requests>=2.32.5",
     "rich>=14.3.2",
@@ -31,6 +30,7 @@ pipy_search = "pypi_search:main"
 
 [dependency-groups]
 dev = [
+    "coverage>=7.13.3",
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "flake8",

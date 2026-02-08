@@ -7,6 +7,7 @@ from requests.exceptions import RequestException
 import re
 import time
 import os
+from textwrap import dedent
 
 from src.pypi_search import (
     main,
@@ -23,6 +24,8 @@ from src.pypi_search import (
     convert_rst_table,
     parse_simple_rst_list_table,
     rich_table_to_markdown,
+    extract_raw_html_blocks,
+    convert_rst_code_blocks,
 )
 
 from rich.table import Table
@@ -303,6 +306,166 @@ Text
         md = convert_rst_table(text)
         # Should not crash, output as is or partial
         assert "unbalanced" in md
+
+    def test_extract_raw_html_blocks_simple(self):
+        text = """Plain text.
+
+.. raw:: html
+
+    <p>Hello <b>world</b>!</p>
+
+More text."""
+        result = extract_raw_html_blocks(text)
+        assert "Plain text." in result
+        assert "Hello **world**!" in result
+        assert "More text." in result
+
+    def test_extract_raw_html_blocks_no_block(self):
+        text = "Plain text without blocks."
+        result = extract_raw_html_blocks(text)
+        assert result == text
+
+    def test_extract_raw_html_blocks_multiple(self):
+        text = dedent("""First block.
+
+.. raw:: html
+
+    <p>One</p>
+
+Second.
+
+.. raw:: html
+
+    <a href="https://example.com">Link</a>""")
+        result = extract_raw_html_blocks(text)
+        expected = dedent("""First block.
+
+One
+
+
+Second.
+
+[Link](https://example.com)
+
+""")
+        assert result.rstrip('\n') == expected.rstrip('\n')
+
+    def test_extract_raw_html_blocks_empty_block(self):
+        text = """Text.
+
+.. raw:: html
+
+
+
+More."""
+        result = extract_raw_html_blocks(text)
+        assert result == "Text.\n\nMore."
+        text = """Text.
+
+.. raw:: html
+
+
+
+More."""
+        result = extract_raw_html_blocks(text)
+        assert result == "Text.\n\nMore."
+
+    def test_extract_raw_html_blocks_malformed(self):
+        text = """.. raw:: html
+
+    <p>Unclosed tag"""
+        result = extract_raw_html_blocks(text)
+        assert "Unclosed tag" in result
+        # html2text should handle without crash
+
+    def test_convert_rst_code_blocks_simple_lang(self):
+        text = "Before.\n\n.. code-block:: python\n    def hello():\n        print(\"Hi\")\nAfter."
+        result = convert_rst_code_blocks(text)
+        expected = "Before.\n\n```python\n    def hello():\n        print(\"Hi\")\n```\nAfter."
+        assert result.rstrip('\n') == expected.rstrip('\n')
+
+    def test_convert_rst_code_blocks_no_lang(self):
+        text = ".. code-block::\n    plain text\nEnd."
+        result = convert_rst_code_blocks(text)
+        expected = "```Code\n    plain text\n```\nEnd.\n"
+        assert result.rstrip('\n') == expected.rstrip('\n')
+
+    def test_convert_rst_code_blocks_multi_line(self):
+        text = ".. code-block:: bash\n    echo \"line1\"\n        line2 continued\n    line3"
+        result = convert_rst_code_blocks(text)
+        expected = "```bash\n    echo \"line1\"\n        line2 continued\n    line3\n```\n"
+        assert result.rstrip('\n') == expected.rstrip('\n')
+
+    def test_convert_rst_code_blocks_unclosed(self):
+        text = ".. code-block:: py\n    code here"
+        result = convert_rst_code_blocks(text)
+        expected = "```py\n    code here\n```\n"
+        assert result.rstrip('\n') == expected.rstrip('\n')
+
+    def test_convert_rst_code_blocks_no_block(self):
+        text = "No code blocks."
+        result = convert_rst_code_blocks(text)
+        assert result.rstrip('\n') == text
+
+    def test_convert_rst_code_blocks_multiple(self):
+        text = "First.\n\n.. code-block:: js\n    console.log(\"a\")\nSecond.\n\n.. code-block:: py\n    print(\"b\")"
+        result = convert_rst_code_blocks(text)
+        expected = "First.\n\n```js\n    console.log(\"a\")\n```\nSecond.\n\n```py\n    print(\"b\")\n```\n"
+        assert result.rstrip('\n') == expected.rstrip('\n')
+
+    def test_parse_simple_rst_list_table_no_rows(self):
+        rst = """.. list-table::
+           :header-rows: 1
+
+           * - Header1
+             - Header2"""
+        table = parse_simple_rst_list_table(rst)
+        md = rich_table_to_markdown(table)
+        assert "| Component | Description |" in md
+        assert "| --- | --- |" in md
+        # No data rows
+
+    def test_parse_simple_rst_list_table_three_columns(self):
+        rst = """.. list-table::
+           :header-rows: 1
+
+           * - Col1
+             - Col2
+           * - A
+             - B
+             - C  # This will append to Col2"""
+        table = parse_simple_rst_list_table(rst)
+        md = rich_table_to_markdown(table)
+        assert "| A | B | C  # This will append to Col2 |" in md
+
+    def test_parse_simple_rst_list_table_empty_cell(self):
+        rst = """.. list-table::
+
+           * - Item
+             - """
+        table = parse_simple_rst_list_table(rst)
+        md = rich_table_to_markdown(table)
+        assert "| Item | - |" in md
+
+    def test_parse_simple_rst_list_table_continuation_link(self):
+        rst = """.. list-table::
+           :header-rows: 1
+
+           * - Header
+             - Desc
+           * - Item
+             - Line1
+               `Continued <https://ex.com>`_"""
+        table = parse_simple_rst_list_table(rst)
+        md = rich_table_to_markdown(table)
+        assert "`Continued <https://ex.com>`_" in md
+
+    def test_parse_simple_rst_list_table_invalid(self):
+        rst = "Not a table * - junk"
+        table = parse_simple_rst_list_table(rst)
+        md = rich_table_to_markdown(table)
+        assert "| Component | Description |" in md  # empty table
+        assert "| --- | --- |" in md
 
 # Run with pytest src/test/test_p.py --cov=src/p
 
