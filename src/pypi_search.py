@@ -201,9 +201,7 @@ def fetch_project_details(package_name, include_desc=False):
     if homepage:
         md_parts.append(f"**Homepage:** [{homepage}]({homepage})")
     project_urls = info.get('project_urls', {})
-    release_url = None
-    if project_urls:
-        release_url = project_urls.get('Download URL') or project_urls.get('Source')
+    release_url = info.get('release_url') or project_urls.get('Download URL') or project_urls.get('Source')
     if release_url:
         md_parts.append(f"**Release:** [{release_url}]({release_url})")
     bug_tracker = None
@@ -312,6 +310,9 @@ def main():
                     console.print(md)
             else:
                 console.print(f"[cyan]{i:>6}.[/] [bold]{pkg}[/bold]")
+
+        if len(matches) > max_desc and args.desc:
+            console.print(f"... and {len(matches) - max_desc} more matches")
 
         console.print(f"\n[bold]Total: {len(matches):,}[/bold]")
 

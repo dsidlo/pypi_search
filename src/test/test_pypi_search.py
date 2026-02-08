@@ -17,6 +17,11 @@ from src.pypi_search import (
     CACHE_MAX_AGE_SECONDS,
 )
 
+
+def strip_ansi(text):
+    import re
+    return re.sub(r'\x1B\[[0-?]*[ -/]*[@-~]', '', text)
+
 @pytest.fixture
 def capsys_disabled(capfd):
     """Disable capfd for tests that don't use it."""
@@ -24,11 +29,12 @@ def capsys_disabled(capfd):
     pass
 
 class TestCacheUtils:
-    def test_ensure_cache_dir(self, tmp_path):
-        tmp_cache = tmp_path / ".cache" / "pypi_search"
-        with patch.object(CACHE_FILE.parent, 'mkdir', return_value=None):
+    def test_ensure_cache_dir(self):
+        from unittest.mock import patch
+        mock_mkdir = patch.object(CACHE_DIR, 'mkdir')
+        with mock_mkdir as m:
             ensure_cache_dir()
-        tmp_cache.parent.mkdir.assert_called_once_with(parents=True, exist_ok=True)
+        m.assert_called_once_with(parents=True, exist_ok=True)
 
     def test_is_cache_valid_no_file(self):
         with patch.object(CACHE_FILE, 'exists', return_value=False):
@@ -52,7 +58,7 @@ class TestCacheUtils:
 
     def test_load_cached_packages(self, tmp_path):
         cache_path = tmp_path / "test.cache"
-        cache_path.write_text("pkg1\\npkg2\\n\\n\\npkg3")
+        cache_path.write_text("pkg1\npkg2\n\n\npkg3")
         with patch.object(CACHE_FILE, 'open', lambda *a, **k: open(cache_path)):
             pkgs = load_cached_packages()
         assert pkgs == ["pkg1", "pkg2", "pkg3"]
@@ -63,7 +69,7 @@ class TestCacheUtils:
             save_packages_to_cache(["pkg2", "pkg1", "pkg3"])
         with open(cache_path) as f:
             content = f.read()
-        assert content == "pkg1\\npkg2\\npkg3\\n"
+        assert content == "pkg1\npkg2\npkg3\n"
 
 class TestFetchAllPackageNames:
     def test_success(self):
@@ -73,7 +79,7 @@ class TestFetchAllPackageNames:
         assert pkgs == ["testpkg", "testpkg2"]
 
     def test_network_error(self, caplog):
-        with patch('requests.get', side_effect=Exception("network")):
+        with patch('requests.get', side_effect=RequestException("network")):
             with pytest.raises(SystemExit, match="1"):
                 fetch_all_package_names()
         assert "Error downloading PyPI index" in caplog.text
@@ -100,7 +106,7 @@ class TestFetchProjectDetails:
             assert fetch_project_details("nonexistent") is None
 
     def test_exception(self):
-        with patch('requests.get', side_effect=Exception()):
+        with patch('requests.get', side_effect=RequestException()):
             assert fetch_project_details("test") is None
 
 class TestGetPackages:
@@ -127,24 +133,24 @@ class TestMain:
         sys.argv = ['script', 'nonexistent']
         main()
         captured = capsys.readouterr()
-        assert "No matching packages found." in captured.out
+        assert "No matching packages found." in strip_ansi(captured.out)
 
     @patch('src.pypi_search.get_packages', return_value=["pkg1", "pkg2"])
     def test_count_only(self, mock_get, capsys):
         sys.argv = ['script', '.', '--count-only']
         main()
         captured = capsys.readouterr()
-        assert "Found 2 matching packages." in captured.out
+        assert "Found 2 matching packages." in strip_ansi(captured.out)
 
     @patch('src.pypi_search.get_packages', return_value=["pkg1", "pkg2"])
-    @patch('src.pypi_search.fetch_project_details', return_value="## MD details")
+    @patch('src.pypi_search.fetch_project_details', return_value="## testpkg\n**Version:** `1.0`")
     def test_list_with_desc(self, mock_details, mock_get, capsys):
         sys.argv = ['script', '.', '--desc']
         main()
         captured = capsys.readouterr()
         assert "pkg1" in captured.out
         assert "pkg2" in captured.out
-        assert "## MD details" in captured.out
+        assert "**Version:** `1.0`" in strip_ansi(captured.out)
         assert "... and 0 more" not in captured.out  # <10
 
     @patch('src.pypi_search.get_packages', return_value=["pkg1"] * 15)
@@ -155,6 +161,6 @@ class TestMain:
         captured = capsys.readouterr()
         assert "pkg1" in captured.out  # all printed
         assert "MD" in captured.out  # top 10
-        assert "... and 5 more matches" in captured.out
+        assert "... and 5 more matches" in strip_ansi(captured.out)
 
 # Run with pytest src/test/test_pypi_search.py --cov=src/pypi_search
