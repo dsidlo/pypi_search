@@ -254,9 +254,9 @@ def main():
         # Validate regex
         try:
             flags = re.IGNORECASE if args.ignore_case else 0
-            regex = re.compile(rf'^{args.pattern}$', flags)
+            regex = re.compile(args.pattern, flags)
         except re.error as e:
-            console.print(f"Invalid regular expression: {e}", file=sys.stderr)
+            print(f"Invalid regular expression: {e}", file=sys.stderr)
             sys.exit(2)
 
         all_packages = get_packages(args.refresh_cache)
