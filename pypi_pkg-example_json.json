@@ -1,0 +1,143 @@
+
+{
+  "json-comment-01": "--------------------------------------------------------------",
+  "json-comment-02": "Example Reponse From https://pypi.org/pypi/<package_name>/json",
+  "json-comment-03": "--------------------------------------------------------------",
+
+  "info": {
+    "author": "",
+    "author_email": "dsidlo \u003cdsidlo@gmail.com\u003e",
+    "bugtrack_url": null,
+    "classifiers": [
+      "License :: OSI Approved :: Apache Software License",
+      "Operating System :: OS Independent",
+      "Programming Language :: Python :: 3",
+      "Topic :: Text Processing"
+    ],
+    "description": "# PyReParse\nPyReParse is a library the helps to ease the development processes of parsing\ncomplex reports, which have enough structure for effective regular expression \nprocessing.\n\nPyReParse is a library that helps one create parsing engines for formed text reports. I had a such a need when I was tasked to parse a Financial Institution\u0027s archived transaction reports where the databases that held this data no-longer existed. So the data in the report forms was the only data available to re-create the original database. Thus, regular-expressions were used to find and capture certain field values, and validation calculations were needed to ensure that the data going into the database was complete and accurate.\n\n\u003cbr\u003e\n\n## Benefits...\n\n- The benefits of using PyReParse include...\n- The use of a standard data structure for holding regular expressions. \nAssociated to the regexp are additional flags and fields that help to reduce the\nnumber of times a given regexp is executed.\n- Regexp processing can be expensive. The goal is to run regexp matches only when they \nare needed. So if you know that the pattern for regexp A always occurs before\nregexp B, you can use the data structure to specify that regexp B should not\nbe used until after regexp A triggers.\n- All regular expressions and their associated properties are in one data structure.\n- Additional benefits include the ability to crosscheck a non-matching line which\na simpler regexp that can ... name evaluates to True if the pattern has been matched, and False if the pattern as not been matched since the last \"NEW_SECTION\", A \"New Section\" occurs when a pattern that has the flag **PyReParse.FLAG_NEW_SECTION** matches the current line, and it triggers the reset of section counters.\n\n## Coding Callbacks...\nYou may also code callbacks that are executed when a pattern matches. The callback function is called when a pattern matches, and after the fields have been captured. The callback function is passed the PyReParse instance, and the name of the pattern that matched. The callback function can then use the PyReParse instance to access any currently captured fields, and perform any processing logic field value updates.\n\n\u003cbr\u003e\n## License...\n\nApache 2.0\n",
+    "description_content_type": "text/markdown",
+    "docs_url": null,
+    "download_url": "",
+    "downloads": {
+      "last_day": -1,
+      "last_month": -1,
+      "last_week": -1
+    },
+    "dynamic": null,
+    "home_page": "",
+    "keywords": "",
+    "license": "Apache License Version 2.0, January 2004 http://www.apache.org/licenses/  TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION  1. Definitions.  \"License\" shall mean the terms and conditions for use, reproduction, and distribution as defined by Sections 1 through 9 of this document.  \"Licensor\" shall mean the copyright owner or entity authorized by the copyright owner that is granting the License.  \"Legal Entity\" shall mean the union of the acting entity and all other entities that control, are controlled by, or are under common control with that entity. For the purposes of this definition, \"control\" means (i) the power, direct or indirect, to cause the direction or management of such entity, whether by contract or otherwise, or (ii) ownership of fifty percent (50%) or more of the outstanding ... You agree to indemnify, defend, and hold each Contributor harmless for any liability incurred by, or claims asserted against, such Contributor by reason of your accepting any such warranty or additional liability.  END OF TERMS AND CONDITIONS  APPENDIX: How to apply the Apache License to your work.  To apply the Apache License to your work, attach the following boilerplate notice, with the fields enclosed by brackets \"[]\" replaced with your own identifying information. (Don\u0027t include the brackets!)  The text should be enclosed in the appropriate comment syntax for the file format. We also recommend that a file or class name and description of purpose be included on the same \"printed page\" as the copyright notice for easier identification within third-party archives.  Copyright [yyyy] [name of copyright owner]  Licensed under the Apache License, Version 2.0 (the \"License\"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.",
+    "license_expression": null,
+    "license_files": null,
+    "maintainer": "",
+    "maintainer_email": "",
+    "name": "pyreparse",
+    "package_url": "https://pypi.org/project/pyreparse/",
+    "platform": null,
+    "project_url": "https://pypi.org/project/pyreparse/",
+    "project_urls": {
+      "Bug Tracker": "https://github.com/dsidlo/pyreparse/issues",
+      "Homepage": "https://github.com/dsidlo/pyreparse"
+    },
+    "provides_extra": null,
+    "release_url": "https://pypi.org/project/pyreparse/0.0.3/",
+    "requires_dist": null,
+    "requires_python": "\u003e\u003d3.7",
+    "summary": "Build Efficient RegExp Parsing Engines.",
+    "version": "0.0.3",
+    "yanked": false,
+    "yanked_reason": null
+  },
+  "last_serial": 14528128,
+  "releases": {
+    "0.0.3": [
+      {
+        "comment_text": "",
+        "digests": {
+          "blake2b_256": "3eee7bf46844868d406804df74c555a5714cc19f662452cb2a87a2e028bac12b",
+          "md5": "0c12162bb825991ecd74d0b292302ac3",
+          "sha256": "894f0338dea0afd56ce95144d5c8eeafc5ee5e361e0bdf9af491ae736f5ea95d"
+        },
+        "downloads": -1,
+        "filename": "pyreparse-0.0.3-py3-none-any.whl",
+        "has_sig": false,
+        "md5_digest": "0c12162bb825991ecd74d0b292302ac3",
+        "packagetype": "bdist_wheel",
+        "python_version": "py3",
+        "requires_python": "\u003e\u003d3.7",
+        "size": 24552,
+        "upload_time": "2022-07-23T23:41:37",
+        "upload_time_iso_8601": "2022-07-23T23:41:37.242436Z",
+        "url": "https://files.pythonhosted.org/packages/3e/ee/7bf46844868d406804df74c555a5714cc19f662452cb2a87a2e028bac12b/pyreparse-0.0.3-py3-none-any.whl",
+        "yanked": false,
+        "yanked_reason": null
+      },
+      {
+        "comment_text": "",
+        "digests": {
+          "blake2b_256": "7cee523c9edcdfe2b14f37ac7ea82bde19f400495c2a15d6012ab5dd2bb1f753",
+          "md5": "268d595c3c0b4fd2321f48ea7d02843c",
+          "sha256": "e1af219fc1fb9f1bec8f6ea3bdb69f265b9179cb873d898177d08eefb4f2c263"
+        },
+        "downloads": -1,
+        "filename": "pyreparse-0.0.3.tar.gz",
+        "has_sig": false,
+        "md5_digest": "268d595c3c0b4fd2321f48ea7d02843c",
+        "packagetype": "sdist",
+        "python_version": "source",
+        "requires_python": "\u003e\u003d3.7",
+        "size": 65772,
+        "upload_time": "2022-07-23T23:41:44",
+        "upload_time_iso_8601": "2022-07-23T23:41:44.084875Z",
+        "url": "https://files.pythonhosted.org/packages/7c/ee/523c9edcdfe2b14f37ac7ea82bde19f400495c2a15d6012ab5dd2bb1f753/pyreparse-0.0.3.tar.gz",
+        "yanked": false,
+        "yanked_reason": null
+      }
+    ]
+  },
+  "urls": [
+    {
+      "comment_text": "",
+      "digests": {
+        "blake2b_256": "3eee7bf46844868d406804df74c555a5714cc19f662452cb2a87a2e028bac12b",
+        "md5": "0c12162bb825991ecd74d0b292302ac3",
+        "sha256": "894f0338dea0afd56ce95144d5c8eeafc5ee5e361e0bdf9af491ae736f5ea95d"
+      },
+      "downloads": -1,
+      "filename": "pyreparse-0.0.3-py3-none-any.whl",
+      "has_sig": false,
+      "md5_digest": "0c12162bb825991ecd74d0b292302ac3",
+      "packagetype": "bdist_wheel",
+      "python_version": "py3",
+      "requires_python": "\u003e\u003d3.7",
+      "size": 24552,
+      "upload_time": "2022-07-23T23:41:37",
+      "upload_time_iso_8601": "2022-07-23T23:41:37.242436Z",
+      "url": "https://files.pythonhosted.org/packages/3e/ee/7bf46844868d406804df74c555a5714cc19f662452cb2a87a2e028bac12b/pyreparse-0.0.3-py3-none-any.whl",
+      "yanked": false,
+      "yanked_reason": null
+    },
+    {
+      "comment_text": "",
+      "digests": {
+        "blake2b_256": "7cee523c9edcdfe2b14f37ac7ea82bde19f400495c2a15d6012ab5dd2bb1f753",
+        "md5": "268d595c3c0b4fd2321f48ea7d02843c",
+        "sha256": "e1af219fc1fb9f1bec8f6ea3bdb69f265b9179cb873d898177d08eefb4f2c263"
+      },
+      "downloads": -1,
+      "filename": "pyreparse-0.0.3.tar.gz",
+      "has_sig": false,
+      "md5_digest": "268d595c3c0b4fd2321f48ea7d02843c",
+      "packagetype": "sdist",
+      "python_version": "source",
+      "requires_python": "\u003e\u003d3.7",
+      "size": 65772,
+      "upload_time": "2022-07-23T23:41:44",
+      "upload_time_iso_8601": "2022-07-23T23:41:44.084875Z",
+      "url": "https://files.pythonhosted.org/packages/7c/ee/523c9edcdfe2b14f37ac7ea82bde19f400495c2a15d6012ab5dd2bb1f753/pyreparse-0.0.3.tar.gz",
+      "yanked": false,
+      "yanked_reason": null
+    }
+  ],
+  "vulnerabilities": []
+}

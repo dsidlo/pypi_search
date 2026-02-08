@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pypi_search"
+version = "0.1.0"
+description = "Search PyPI package names by regex pattern, with caching and optional details."
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "David Sidlo", email = "dsidlo@gmail.com"}]
+requires-python = ">=3.10"
+dependencies = [
+    "beautifulsoup4>=4.14.3",
+    "docutils>=0.22.4",
+    "hatchling",
+    "html2text>=2025.4.15",
+    "m2r2>=0.3.4",
+    "pypi>=2.1",
+    "requests>=2.32.5",
+    "rich>=14.3.2",
+]
+[project.scripts]
+pipy_search = "pypi_search:main"
+
+[tool.hatch.build.targets.wheel]
+      packages = ["src/pypi_search"]
+
+[tool.uv]
+    package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "flake8",
+]

@@ -1,0 +1,17 @@
+# Virtual environment
+.venv/
+
+# IDE
+.idea/
+
+# uv lockfile (if not committed)
+# uv.lock
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Cache
+.aider-desk/
+.aider*
