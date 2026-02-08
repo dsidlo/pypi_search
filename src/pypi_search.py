@@ -95,6 +95,8 @@ def convert_rst_code_blocks(text: str):
     re_end_code_block = re.compile(r'^\S+')
     lines = ''
     in_cb = False  # In CodeBlock
+    # For logic that stops generating an additional line at the top of a code-block
+    cb_lns = 0
     for ln in text.splitlines():
         ln = ln.rstrip()
         if ln.startswith('.. code-block::'):
@@ -108,7 +110,12 @@ def convert_rst_code_blocks(text: str):
         elif re_end_code_block.match(ln) and in_cb:
             ln = f'```\n{ln}'
             in_cb = False # Out of CodeBlock
-        lines += ln + '\n'
+            cb_lns = 0
+        if in_cb and cb_lns == 0:
+            lines += ln
+            cb_lns += 1
+        else:
+            lines += ln + '\n'
     if in_cb:
         lines += '```\n'
     return lines
@@ -270,37 +277,41 @@ def main():
         console.print(f"[bold cyan]Found {len(matches):,} matches![/bold cyan]\n")
 
         for i, pkg in enumerate(matches, 1):
-            if i > max_desc:
+            if i > max_desc and args.desc:
                 console.print(f"[red] *** Max Descriptions Reached. *** [/red]")
                 break
-            console.rule(f"[cyan]{i}.[/] [bold]{pkg}[/bold]")
-            details_md = fetch_project_details(pkg, include_desc=args.full_desc)
-            if details_md:
-                # Filter out '.. image::' from details_md
-                details_md = '\n'.join([line for line in details_md.split('\n')
-                                        if not (line.startswith('.. image::')     or
-                                                line.startswith('   :height: ')   or
-                                                line.startswith('   :width: ')    or
-                                                line.startswith('   :alt: ')      or
-                                                line.startswith(':raw-html-m2r:') or
-                                                line.startswith('   :target: ')   or
-                                                line == '|')])
-                details_md = re.sub(
-                    r'\\?\s*:raw-html-m2r:\s*(`[^`]+`)\\?\s*',
-                    r'\1',
-                    details_md,
-                    flags=re.MULTILINE
-                )
-                details_md = re.sub(r'`<br>`', r'\n\n', details_md, flags=re.MULTILINE)
-                details_md = re.sub(r'#.', r'*', details_md, flags=re.MULTILINE)
-                details_md = re.sub(r'\\ ', r' ', details_md, flags=re.MULTILINE)
-                details_md = re.sub(r'(^\.\.\s+([^:]+\:)\s+(https?://[^\s]+))', r' - \2 `\3`', details_md, flags=re.MULTILINE)
-                details_md = re.sub(r'<#', r'<\#', details_md, flags=re.MULTILINE)
-                details_md = re.sub(r'>_', r'>', details_md, flags=re.MULTILINE)
-                details_md = re.sub(r'>`_', r'>`', details_md, flags=re.MULTILINE)
-                details_md = re.sub(r"` (?=\W)", r"`", details_md, flags=re.MULTILINE)
-                md = Markdown(details_md, code_theme=BrightBlueStyle)
-                console.print(md)
+            if args.desc:
+                # String of i space padded to 4 digits
+                console.rule(f"[cyan]{i}.[/] [bold]{pkg}[/bold]")
+                details_md = fetch_project_details(pkg, include_desc=args.full_desc)
+                if details_md:
+                    # Filter out '.. image::' from details_md
+                    details_md = '\n'.join([line for line in details_md.split('\n')
+                                            if not (line.startswith('.. image::')     or
+                                                    line.startswith('   :height: ')   or
+                                                    line.startswith('   :width: ')    or
+                                                    line.startswith('   :alt: ')      or
+                                                    line.startswith(':raw-html-m2r:') or
+                                                    line.startswith('   :target: ')   or
+                                                    line == '|')])
+                    details_md = re.sub(
+                        r'\\?\s*:raw-html-m2r:\s*(`[^`]+`)\\?\s*',
+                        r'\1',
+                        details_md,
+                        flags=re.MULTILINE
+                    )
+                    details_md = re.sub(r'`<br>`', r'\n\n', details_md, flags=re.MULTILINE)
+                    details_md = re.sub(r'#.', r'*', details_md, flags=re.MULTILINE)
+                    details_md = re.sub(r'\\ ', r' ', details_md, flags=re.MULTILINE)
+                    details_md = re.sub(r'(^\.\.\s+([^:]+\:)\s+(https?://[^\s]+))', r' - \2 `\3`', details_md, flags=re.MULTILINE)
+                    details_md = re.sub(r'<#', r'<\#', details_md, flags=re.MULTILINE)
+                    details_md = re.sub(r'>_', r'>', details_md, flags=re.MULTILINE)
+                    details_md = re.sub(r'>`_', r'>`', details_md, flags=re.MULTILINE)
+                    details_md = re.sub(r"` (?=\W)", r"`", details_md, flags=re.MULTILINE)
+                    md = Markdown(details_md, code_theme=BrightBlueStyle)
+                    console.print(md)
+            else:
+                console.print(f"[cyan]{i:>6}.[/] [bold]{pkg}[/bold]")
 
         console.print(f"\n[bold]Total: {len(matches):,}[/bold]")
 
