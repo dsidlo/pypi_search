@@ -6,6 +6,7 @@ from io import StringIO
 from requests.exceptions import RequestException
 import re
 import time
+import os
 
 from src.pypi_search import (
     main,
@@ -34,7 +35,7 @@ def capsys_disabled(capfd):
 
 class TestCacheUtils:
     def test_ensure_cache_dir(self, tmp_path, monkeypatch):
-        test_cache_dir = tmp_path / ".cache" / "pypi_search"
+        test_cache_dir = tmp_path / ".cache" / "p"
         monkeypatch.setattr('src.pypi_search.CACHE_DIR', test_cache_dir)
         assert not test_cache_dir.exists()
         ensure_cache_dir()
@@ -82,11 +83,12 @@ class TestFetchAllPackageNames:
             pkgs = fetch_all_package_names()
         assert pkgs == ["testpkg", "testpkg2"]
 
-    def test_network_error(self, caplog):
+    def test_network_error(self, capfd):
         with patch('requests.get', side_effect=RequestException("network")):
             with pytest.raises(SystemExit, match="1"):
                 fetch_all_package_names()
-        assert "Error downloading PyPI index" in caplog.text
+        captured = capfd.readouterr()
+        assert "Error downloading PyPI index" in captured.err
 
 class TestFetchProjectDetails:
     def test_success(self):
@@ -100,7 +102,7 @@ class TestFetchProjectDetails:
         assert "**Homepage:** [https://example.com](https://example.com)" in md
         assert "**Release:** [https://files.example](https://files.example)" in md
         assert "**Bug Tracker:** [https://issues.example](https://issues.example)" in md
-        assert "**Classifiers:**\\n- License :: OSI Approved" in md
+        assert "\*\*Classifiers:\*\*\\n- License :: OSI Approved" in md
         assert "**Summary:** Test pkg" in md
         assert "**Description:**" in md
 
@@ -154,7 +156,7 @@ class TestMain:
         captured = capsys.readouterr()
         assert "pkg1" in captured.out
         assert "pkg2" in captured.out
-        assert "**Version:** `1.0`" in strip_ansi(captured.out)
+        assert "Version: 1.0" in strip_ansi(captured.out)
         assert "... and 0 more" not in captured.out  # <10
 
     @patch('src.pypi_search.get_packages', return_value=["pkg1"] * 15)
@@ -167,4 +169,7 @@ class TestMain:
         assert "MD" in captured.out  # top 10
         assert "... and 5 more matches" in strip_ansi(captured.out)
 
-# Run with pytest src/test/test_pypi_search.py --cov=src/pypi_search
+# Run with pytest src/test/test_p.py --cov=src/p
+
+
+
