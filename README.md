@@ -2,7 +2,7 @@
 
 Search PyPI package names by regex pattern 🐍📦
 
-Fast, cached regex search over all PyPI packages (~500k+), with optional details (version, maintainer, description).
+Fast, cached regex search over all PyPI packages (~736k+), with optional details (version, maintainer, description).
 
 ![Screenshot from 2026-02-08 15-44-00.png](docs/images/Screenshot%20from%202026-02-08%2015-44-00.png){width=100}
 
