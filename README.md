@@ -141,7 +141,7 @@ Total matches: 413
   - **AI Agent Env:** 
     - Aider
     - Aider-Desk
-    - Junie 
+    - Junie
 
 ## Feedback
 
