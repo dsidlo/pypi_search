@@ -8,6 +8,7 @@ on:
     branches:
       - 'main'
       - 'v*-Beta'
+      - 'v*-Alpha'
   pull_request:
     branches: [ "main" ]
 
