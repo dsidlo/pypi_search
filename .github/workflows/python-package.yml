@@ -31,7 +31,8 @@ jobs:
       #     actions/setup-python@v5.0.0 0a5c61591373683505ea898e09a3ea4f39ef2b9c
       with:
         python-version: ${{ matrix.python-version }}
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c
+      #     actions/setup-python@v4 7f4fc3e22c37d6ff65e88745f38bd3157c663f7c
       with:
         python-version: ${{ matrix.python-version }}
         # cache: pip    # ← v4 caching tends to work better with act in many reports
