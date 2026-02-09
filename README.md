@@ -27,6 +27,15 @@ Fast, cached regex search over all PyPI packages (~736k+), with optional details
 
 ## Installation
 
+```bash
+# Standard pip install
+pip install pypi_search
+
+# uv environment install
+uv pip install pypi_search
+```
+
+
 ## Usage
 
 `pip-search "pattern"`
@@ -133,6 +142,19 @@ Total matches: 413
     - Aider
     - Aider-Desk
     - Junie
+
+## Feedback
+
+  - Let me know what you think.
+    Please post bug, suggestions, and wins from using pypi_search. I'd really appreciate it.
+  - Links
+    - [Report Bugs](https://github.com/dsidlo/pypi_search/issues)
+    - [Announcements](https://github.com/dsidlo/pypi_search/discussions/categories/announcements)
+    - [Feedback](https://github.com/dsidlo/pypi_search/discussions/)
+
+## Curren Release
+
+  - v0.0.1-Beta
 
 ## Licence
 
