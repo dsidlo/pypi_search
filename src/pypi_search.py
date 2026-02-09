@@ -154,8 +154,6 @@ def convert_rst_table(text: str, console: Console = None) -> str:
     return '\n'.join(lines_out)
 
 
-
-
 def parse_simple_rst_list_table(text: str) -> Table:
     lines = text.splitlines()
 

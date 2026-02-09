@@ -50,4 +50,4 @@ jobs:
       run: |
         uv sync --dev
         python -V
-        # cd src && ../.venv/bin/coverage run -m unittest -v pyreparse/test/test_pypi_search.py && ../.venv/bin/coverage report -m
+        cd src/test; uv run pytest ./ -v

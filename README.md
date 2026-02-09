@@ -1,14 +1,29 @@
-# pip-search
+# pypi_search
 
 Search PyPI package names by regex pattern 🐍📦
 
 Fast, cached regex search over all PyPI packages (~500k+), with optional details (version, maintainer, description).
 
+![Screenshot from 2026-02-08 15-44-00.png](docs/images/Screenshot%20from%202026-02-08%2015-44-00.png){width=100}
+
 ## Features
+
 - Regex matching (e.g., `^aio.*`, `flask|django`).
-- 23h cache (`~/.cache/pip-search/`).
-- Optional details for top 10 matches (`-d`).
-- Count-only mode.
+- Access to pypi.org packages via the simple package API
+  - 23h cache (`~/.cache/pip-search/`)
+- Color output to console
+
+## Program Options
+  - `package_name | <regex pattern>`
+    - first parameter
+  - `--cache-refresh | -r`
+    - to refresh cache on demand
+  - `--desc | -d`           
+    - Optional details for top 10 matches.
+  - `--full-desc | -f`
+    - for full description
+  - `--count-only | -c`
+    - just test counts of matches
 
 ## Installation
 
