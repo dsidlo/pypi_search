@@ -414,7 +414,7 @@ def main():
                         flags=re.MULTILINE
                     )
                     details_md = re.sub(r'`<br>`', r'\n\n', details_md, flags=re.MULTILINE)
-                    details_md = re.sub(r'#.', r'*', details_md, flags=re.MULTILINE)
+                    details_md = re.sub(r'#\.', r'*', details_md, flags=re.MULTILINE)
                     details_md = re.sub(r'\\ ', r' ', details_md, flags=re.MULTILINE)
                     details_md = re.sub(r'(^\.\.\s+([^:]+\:)\s+(https?://[^\s]+))', r' - \2 `\3`', details_md, flags=re.MULTILINE)
                     details_md = re.sub(r'<#', r'<\#', details_md, flags=re.MULTILINE)

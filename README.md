@@ -125,6 +125,15 @@ zope.app.http
 Total matches: 413
 ```
 
+## My Dev Environment: 
+
+  - **Python Env:** uv
+  - **IDE:** JetBrains PyCharm
+  - **AI Agent Env:** 
+    - Aider
+    - Aider-Desk
+    - Junie
+
 ## Licence
 
 MIT License. Built with Requests + BeautifulSoup.
