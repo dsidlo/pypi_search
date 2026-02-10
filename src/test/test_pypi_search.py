@@ -179,6 +179,32 @@ class TestMain:
         assert "MD" in captured.out  # top 10
         assert "... and 5 more matches" in strip_ansi(captured.out)
 
+    @pytest.mark.parametrize('arg', ['--version', '-V'])
+    def test_version_flag(self, monkeypatch, capsys, arg):
+        monkeypatch.setattr(sys, 'argv', ['prog', arg])
+        def mock_exit(code):
+            raise SystemExit(code)
+        monkeypatch.setattr('sys.exit', mock_exit)
+        with patch('tomllib.load') as mock_toml:
+            mock_toml.return_value = {'project': {'name': 'pypi_search_caching', 'version': '0.0.2-Beta'}}
+            with pytest.raises(SystemExit) as exc:
+                main()
+            assert exc.value.code == 0
+            captured = capsys.readouterr()
+            assert captured.out.strip() == 'pypi_search_caching 0.0.2-Beta'
+
+    def test_version_file_missing(self, monkeypatch, capsys):
+        monkeypatch.setattr(sys, 'argv', ['prog', '--version'])  # optional, since error early
+        def mock_exit(code):
+            raise SystemExit(code)
+        monkeypatch.setattr('sys.exit', mock_exit)
+        with patch('pathlib.Path.exists', return_value=False):
+            with pytest.raises(SystemExit) as exc:
+                main()
+            assert exc.value.code == 1
+            captured = capsys.readouterr()
+            assert 'pyproject.toml not found' in captured.err
+
 
 class TestRSTTableUtils:
 

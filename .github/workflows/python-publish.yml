@@ -6,6 +6,9 @@
 # separate terms of service, privacy policy, and support
 # documentation.
 
+# Note: - GitHub blocks OIDC tokens on forked-repo PRs for security.
+#       - Thus, one can only publish from the main branch.
+
 name: Upload Python Package
 
 on:
@@ -17,10 +20,11 @@ permissions:
   id-token: write
 
 jobs:
-  deploy:
-
+  publish:
     runs-on: ubuntu-latest
-
+    permissions:              # ← just add this
+      id-token: write         # ← this is the only required line for Trusted Publishing
+      contents: read          # ← recommended (checkout needs it)
     steps:
     - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
       #     actions/checkout@v5.0.1 08c6903cd8c0fde910a37f88322edcfb5dd907a8

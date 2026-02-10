@@ -30,6 +30,7 @@ import os
 from rich.console import Console
 from rich.markdown import Markdown
 from pathlib import Path
+import tomllib
 from bs4 import BeautifulSoup
 from rich.theme import Theme
 from rich.table import Table
@@ -335,8 +336,19 @@ def fetch_project_details(package_name, console=None, include_desc=False):
     return '\n\n'.join(md_parts)
 
 
+def get_version():
+    toml_path = Path(__file__).parent.parent / "pyproject.toml"
+    if not toml_path.exists():
+        print("pyproject.toml not found.", file=sys.stderr)
+        sys.exit(1)
+    with toml_path.open('rb') as f:
+        data = tomllib.load(f)
+    return f"{data['project']['name']} {data['project']['version']}"
+
+
 def main():
     parser = argparse.ArgumentParser(description="Search PyPI packages by regex")
+    parser.add_argument('--version', '-V', action='version', version=get_version())
     parser.add_argument("pattern", help="Regular expression to match package names")
     parser.add_argument("-i", "--ignore-case", action="store_true", default=False,
                         help="Case-insensitive matching (default: on)")
