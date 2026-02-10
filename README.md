@@ -31,27 +31,28 @@ Fast, cached regex search over all PyPI packages (~736k+), with optional details
 
 ```bash
 # Standard pip install
-pip install pypi_search
+pip install pypi_search_cached
 
 # uv environment install
-uv pip install pypi_search
+uv pip install pypi_search_cached
 ```
 
+- Installs pypi_search to ~/.local/bin
 
 ## Usage
 
-`pip-search "pattern"`
+`pypi_search "pattern"`
 
-Details for first 10 pip-search "flask|django" --desc pip-search "pattern" --count-only
+Details for first 10 pypi_search "flask|django" --desc pypi_search "pattern" --count-only
 ```shell
-pip-search "^aio" -d 
+pypi_search "^aio" -d 
 ```
 
 ## Examples
 
 Input argument is anchored between '^' start of line and '$' end of line. So if there are not regular expression character, it searches for a specific module...
 ```shell
-✦ ❯ ./pip-search aiohttp 
+✦ ❯ ./pypi_search aiohttp 
 Using cached package list (age < 23h)
 Found 1 matching packages:
 
@@ -62,7 +63,7 @@ Total matches: 1
 
 Search for a module that begins with...
 ```shell
-✦ ❯ pip-search "^aio" | less
+✦ ❯ pypi_search "^aio" | less
 
 Found 2,159 matching packages:
 
@@ -83,7 +84,7 @@ Total matches: 2,159
 
 Search for a string in the middle of a package name:
 ```shell
- ❯ ./pip-search '.*aio.*'  | less
+ ❯ ./pypi_search '.*aio.*'  | less
 Found 3,094 matching packages:
 
 AIO-CodeCheck
@@ -116,7 +117,7 @@ Total matches: 3,094
 
 Search for a module that ends with...
 ```shell
-✦ ❯ ./pip-search '.*http$'  | less
+✦ ❯ ./pypi_search '.*http$'  | less
 
 Found 413 matching packages:
 
