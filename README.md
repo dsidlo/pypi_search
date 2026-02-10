@@ -26,6 +26,8 @@ Fast, cached regex search over all PyPI packages (~736k+), with optional details
     - for full description
   - `--count-only | -c`
     - just test counts of matches
+  - `--version | -V`           
+    - Show program's version number and exit.
 
 ## Installation
 
@@ -43,7 +45,12 @@ uv pip install pypi_search_cached
 
 `pypi_search "pattern"`
 
-Details for first 10 pypi_search "flask|django" --desc pypi_search "pattern" --count-only
+`pypi_search --version`
+
+Details for first 10: `pypi_search "flask|django" --desc`
+
+Count only: `pypi_search "pattern" --count-only`
+
 ```shell
 pypi_search "^aio" -d 
 ```
