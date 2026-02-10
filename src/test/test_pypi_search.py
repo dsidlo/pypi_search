@@ -194,11 +194,11 @@ class TestMain:
             assert captured.out.strip() == 'pypi_search_caching 0.0.2-Beta'
 
     def test_version_file_missing(self, monkeypatch, capsys):
-        monkeypatch.setattr(sys, 'argv', ['prog', '--version'])
+        monkeypatch.setattr(sys, 'argv', ['prog', '--version'])  # optional, since error early
         def mock_exit(code):
             raise SystemExit(code)
         monkeypatch.setattr('sys.exit', mock_exit)
-        with patch('pathlib.Path.open', side_effect=FileNotFoundError):
+        with patch('pathlib.Path.exists', return_value=False):
             with pytest.raises(SystemExit) as exc:
                 main()
             assert exc.value.code == 1
