@@ -13,7 +13,8 @@ on:
     types: [published]
 
 permissions:
-  contents: write
+  contents: read
+  id-token: write
 
 jobs:
   deploy:
