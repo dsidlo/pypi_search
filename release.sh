@@ -50,10 +50,10 @@ fi
 echo ">>>> act git-workflows passed."
 
 # Check for uncommited files.
-modified_files=$(git status --porcelain | grep -E "^ M|^M |^\?\?")
+modified_files=$(git status --porcelain | grep -E '(^ M|M)'
 if [ -n "$modified_files" ]; then
-  echo "Files have been modified."
-  echo "Please commit modified files."
+  echo "*** Files have been modified."
+  echo "    Please commit modified files."
   exit 1
 fi
 echo ">>>> All files committed (Nice!)."
@@ -64,8 +64,8 @@ if [ -z "$unpushed_commits" ]; then
   unpushed_commits=0
 fi
 if [ "$unpushed_commits" -gt 0 ]; then
-  echo "Error: $unpushed_commits commit(s) have not been pushed."
-  echo "Please push all commits before releasing."
+  echo "*** There are unpushed: $unpushed_commits commit(s) have not been pushed."
+  echo "    Please push all commits before releasing."
   exit 1
 fi
 echo ">>>> All commits pushed (Nice!)."
