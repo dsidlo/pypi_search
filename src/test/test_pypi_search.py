@@ -179,6 +179,34 @@ class TestMain:
         assert "MD" in captured.out  # top 10
         assert "... and 5 more matches" in strip_ansi(captured.out)
 
+    def test_version_flag(self, monkeypatch, capsys, mocker):
+        # Test --version
+        monkeypatch.setattr(sys, 'argv', ['prog', '--version'])
+        mock_toml = mocker.patch('tomllib.load')
+        mock_toml.return_value = {'project': {'name': 'pypi_search_caching', 'version': '0.0.2-Beta'}}
+        mock_exit = mocker.patch('sys.exit')
+        main()
+        captured = capsys.readouterr()
+        assert captured.out.strip() == 'pypi_search_caching 0.0.2-Beta'
+        mock_exit.assert_called_once_with(0)
+
+        # Test -V
+        monkeypatch.setattr(sys, 'argv', ['prog', '-V'])
+        mock_exit.reset_mock()
+        main()
+        captured = capsys.readouterr()
+        assert captured.out.strip() == 'pypi_search_caching 0.0.2-Beta'
+        mock_exit.assert_called_once_with(0)
+
+    def test_file_missing(self, monkeypatch, capsys, mocker):
+        monkeypatch.setattr(sys, 'argv', ['prog', '--version'])
+        mocker.patch('pathlib.Path.open', side_effect=FileNotFoundError)
+        mock_exit = mocker.patch('sys.exit')
+        main()
+        captured = capsys.readouterr()
+        assert 'pyproject.toml not found' in captured.err
+        mock_exit.assert_called_once_with(1)
+
 
 class TestRSTTableUtils:
 
