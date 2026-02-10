@@ -59,4 +59,4 @@ jobs:
       run: |
         uv sync --dev
         python -V
-        cd src/test; uv run pytest ./ -v
+        uv run pytest src/test/ -v --cov=src/pypi_search --cov-report=term-missing

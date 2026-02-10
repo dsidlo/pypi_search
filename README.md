@@ -16,18 +16,24 @@ Fast, cached regex search over all PyPI packages (~736k+), with optional details
 - Color output to console
 
 ## Program Options
-  - `package_name | <regex pattern>`
-    - first parameter
-  - `--cache-refresh | -r`
-    - to refresh cache on demand
-  - `--desc | -d`           
-    - Optional details for top 10 matches.
-  - `--full-desc | -f`
-    - for full description
-  - `--count-only | -c`
-    - just test counts of matches
-  - `--version | -V`           
-    - Show program's version number and exit.
+```bash
+❯ uv run python src/pypi_search.py -h
+usage: pypi_search.py [-h] [--version] [-i] [--desc] [--count-only] [--refresh-cache] [--full-desc] pattern
+
+Search PyPI packages by regex
+
+positional arguments:
+  pattern              Regular expression to match package names
+
+options:
+  -h, --help           show this help message and exit
+  --version, -V        show program`s version number and exit
+  -i, --ignore-case    Case-insensitive matching (default: on)
+  --desc, -d           Fetch and show detailed info for first 10 matches
+  --count-only         Only show count of matches
+  --refresh-cache, -r  Refresh the PyPi cache now. Happens before search.
+  --full-desc, -f      Include full description in details (with -d)
+```
 
 ## Installation
 
