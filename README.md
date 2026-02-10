@@ -1,5 +1,7 @@
 # pypi_search
 
+ - Current Version: v0.0.2-Beta
+
 Search PyPI package names by regex pattern 🐍📦
 
 Fast, cached regex search over all PyPI packages (~736k+), with optional details (version, maintainer, description).
@@ -151,10 +153,6 @@ Total matches: 413
     - [Report Bugs](https://github.com/dsidlo/pypi_search/issues)
     - [Announcements](https://github.com/dsidlo/pypi_search/discussions/categories/announcements)
     - [Feedback](https://github.com/dsidlo/pypi_search/discussions/)
-
-## Curren Release
-
-  - v0.0.1-Beta
 
 ## Licence
 
