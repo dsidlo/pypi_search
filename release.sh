@@ -71,6 +71,6 @@ echo ">>>> All commits pushed (Nice!)."
 # Tag the release...
 git tag -d ${version_tag}
 git tag ${version_tag}
-git push origin ${version_tag}
+git push origin ${version_tag} -f
 echo ">>>> Version Release Tag: [$version_tag] applied to main heads local and remote."
 echo "     Please perform Manual Release Actions on Github to Publish."
