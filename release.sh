@@ -41,13 +41,13 @@ else
 fi
 echo ">>>> Build run-test passed."
 
-## Test the Git-Workflow...
-#act
-#if [ $? != 0 ]; then
-#  echo "*** Not ready for release due to 'act' errors."
-#  exit 1
-#fi
-#echo ">>>> act git-workflows passed."
+# Test the Git-Workflow...
+act
+if [ $? != 0 ]; then
+  echo "*** Not ready for release due to 'act' errors."
+  exit 1
+fi
+echo ">>>> act git-workflows passed."
 
 # Check for uncommited files.
 modified_files=$(git status --porcelain | grep -E '(^ M|M)')
