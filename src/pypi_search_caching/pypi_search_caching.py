@@ -35,6 +35,11 @@ import importlib.metadata
 from bs4 import BeautifulSoup
 from rich.theme import Theme
 from rich.table import Table
+import lmdb
+import zlib
+import json
+import struct
+from typing import Dict, Any, Optional
 
 
 
@@ -43,6 +48,8 @@ PYPI_JSON_URL = "https://pypi.org/pypi/{package_name}/json"
 CACHE_DIR = Path.home() / ".cache" / "pypi_search"
 CACHE_FILE = CACHE_DIR / "pypi_search.cache"
 CACHE_MAX_AGE_SECONDS = 23 * 3600  # 23 hours
+
+LMDB_DIR = CACHE_DIR / "lmdb"
 
 from pygments.style import Style
 from pygments.token import Token
@@ -253,6 +260,71 @@ def save_packages_to_cache(packages):
     with CACHE_FILE.open("w", encoding="utf-8") as f:
         for pkg in sorted(packages):
             f.write(pkg + "\n")
+
+
+def init_lmdb_env() -> lmdb.Environment:
+    """Initialize and return an LMDB environment for caching package data."""
+    LMDB_DIR.mkdir(parents=True, exist_ok=True)
+    env = lmdb.open(str(LMDB_DIR), map_size=10 * 1024**3, readonly=False, lock=False, readahead=False, meminit=False)
+    return env
+
+
+def extract_headers(resp: requests.Response) -> Dict[str, Any]:
+    """Extract relevant headers from a requests response for caching."""
+    return {
+        'etag': resp.headers.get('ETag'),
+        'last_modified': resp.headers.get('Last-Modified'),
+        'timestamp': time.time()
+    }
+
+
+def store_package_data(env: lmdb.Environment, package_name: str, headers: Dict[str, Any], json_data: str, md_data: Optional[str] = None):
+    """Store package JSON data and optional Markdown in LMDB with headers, using compression and length-prefixing."""
+    with env.begin(write=True) as txn:
+        key = package_name.encode('utf-8')
+        headers_json = json.dumps(headers).encode('utf-8')
+        json_compressed = zlib.compress(json_data.encode('utf-8'))
+        if md_data:
+            md_compressed = zlib.compress(md_data.encode('utf-8'))
+        else:
+            md_compressed = b''
+
+        value = (
+            struct.pack('>I', len(headers_json)) + headers_json +
+            struct.pack('>I', len(json_compressed)) + json_compressed +
+            struct.pack('>I', len(md_compressed)) + md_compressed
+        )
+        txn.put(key, value)
+
+
+def retrieve_package_data(env: lmdb.Environment, package_name: str) -> Optional[Dict[str, Any]]:
+    """Retrieve cached package data from LMDB, decompressing and parsing as needed."""
+    with env.begin() as txn:
+        key = package_name.encode('utf-8')
+        value = txn.get(key)
+        if value is None:
+            return None
+
+        pos = 0
+        len_h, = struct.unpack('>I', value[pos:pos + 4])
+        pos += 4
+        headers_json = value[pos:pos + len_h].decode('utf-8')
+        pos += len_h
+
+        len_j, = struct.unpack('>I', value[pos:pos + 4])
+        pos += 4
+        json_compressed = value[pos:pos + len_j]
+        pos += len_j
+
+        len_m, = struct.unpack('>I', value[pos:pos + 4])
+        pos += 4
+        md_compressed = value[pos:pos + len_m]
+
+        headers = json.loads(headers_json)
+        json_data = zlib.decompress(json_compressed).decode('utf-8')
+        md_data = zlib.decompress(md_compressed).decode('utf-8') if len_m > 0 else None
+
+        return {'headers': headers, 'json': json_data, 'md': md_data}
 
 
 def fetch_all_package_names(limit=None):
