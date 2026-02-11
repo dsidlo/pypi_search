@@ -367,6 +367,46 @@ def get_packages(refresh_cache):
 
 
 def fetch_project_details(package_name, console=None, include_desc=False):
+    env = None
+    try:
+        env = init_lmdb_env()
+        cached = retrieve_package_data(env, package_name)
+        if cached and (time.time() - cached['headers']['timestamp']) < CACHE_MAX_AGE_SECONDS:
+            data = json.loads(cached['json'])
+            info = data.get('info', {})
+            if include_desc and cached['md']:
+                return cached['md']
+            else:
+                md_parts = [f"## {package_name}"]
+                md_parts.append(f"**Version:** `{info.get('version', 'N/A')}`")
+                md_parts.append(f"**Requires Python:** {info.get('requires_python', 'N/A')}")
+                homepage = info.get('home_page')
+                if homepage:
+                    md_parts.append(f"**Homepage:** [{homepage}]({homepage})")
+                project_urls = info.get('project_urls', {})
+                release_url = info.get('release_url') or project_urls.get('Download URL') or project_urls.get('Source')
+                if release_url:
+                    md_parts.append(f"**Release:** [{release_url}]({release_url})")
+                bug_tracker = None
+                if project_urls:
+                    bug_tracker = project_urls.get('Bug Tracker')
+                if bug_tracker:
+                    md_parts.append(f"**Bug Tracker:** [{bug_tracker}]({bug_tracker})")
+                classifiers = info.get('classifiers', [])
+                if classifiers:
+                    clf_md = '\n'.join([f'- {c}' for c in classifiers[:15]])
+                    md_parts.append(f"**Classifiers:**\n{clf_md}")
+                summary = info.get('summary', '')
+                if summary:
+                    md_parts.append(f"**Summary:** {summary}")
+                return '\n\n'.join(md_parts)
+    except Exception:
+        # Fallback: proceed without LMDB caching
+        pass
+    finally:
+        if env:
+            env.close()
+
     url = PYPI_JSON_URL
     # Use a regexp to change '{package_name}' to the value in package_name.
     url = re.sub(r'\{package_name\}', package_name, url)
@@ -402,13 +442,29 @@ def fetch_project_details(package_name, console=None, include_desc=False):
     summary = info.get('summary', '')
     if summary:
         md_parts.append(f"**Summary:** {summary}")
+    full_md = '\n\n'.join(md_parts)
+    json_data = json.dumps(data)
+    md_to_store = None
     if include_desc:
         long_desc = info.get('description', '')
         if long_desc:
             long_desc = convert_rst_table(long_desc, console)
             long_desc = extract_raw_html_blocks(long_desc)
             md_parts.append(f"**Full Description:**\n{long_desc}...")
-    return '\n\n'.join(md_parts)
+            full_md = '\n\n'.join(md_parts)
+            md_to_store = full_md
+
+    # Store to LMDB on success
+    try:
+        env = init_lmdb_env()
+        headers = extract_headers(resp)
+        store_package_data(env, package_name, headers, json_data, md_to_store)
+        env.close()
+    except Exception:
+        # Fallback: no caching on LMDB failure
+        pass
+
+    return full_md
 
 
 def get_version():
