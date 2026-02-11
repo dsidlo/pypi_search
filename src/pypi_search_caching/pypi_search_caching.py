@@ -37,7 +37,6 @@ from rich.theme import Theme
 from rich.table import Table
 
 
-os.environ['PAGER'] = 'less -R'
 
 PYPI_SIMPLE_URL = "https://pypi.org/simple"
 PYPI_JSON_URL = "https://pypi.org/pypi/{package_name}/json"
@@ -376,7 +375,8 @@ def main():
 
     args = parser.parse_args()
     # console = Console(force_terminal=True, theme=custom_theme)
-    console = Console(force_terminal=True, theme=custom_theme, color_system="truecolor")
+    no_color = args.no_color
+    console = Console(no_color=no_color, force_terminal=not no_color, theme=custom_theme if not no_color else None, color_system="truecolor" if not no_color else None)
 
     with console.pager(styles=True):
 
