@@ -3,6 +3,7 @@ from unittest.mock import patch, MagicMock
 from importlib.metadata import PackageNotFoundError
 from requests.exceptions import RequestException
 import time
+import json
 import os
 from textwrap import dedent
 import sys
