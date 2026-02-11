@@ -61,9 +61,6 @@ echo ">>>> All files committed (Nice!)."
 
 # Check for unpushed commits
 unpushed_commits=$(git rev-list --count @{u}..HEAD 2>/dev/null)
-if [ -n "$unpushed_commits" ]; then
-  unpushed_commits=0
-fi
 if [ "$unpushed_commits" -gt 0 ]; then
   echo "*** There are unpushed: $unpushed_commits commit(s) have not been pushed."
   echo "    Please push all commits before releasing."
