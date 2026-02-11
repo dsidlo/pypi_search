@@ -27,6 +27,9 @@ from src.pypi_search_caching import (
     rich_table_to_markdown,
     extract_raw_html_blocks,
     convert_rst_code_blocks,
+    init_lmdb_env,
+    store_package_data,
+    retrieve_package_data,
 )
 
 from rich.table import Table
@@ -129,6 +132,136 @@ class TestFetchProjectDetails:
         assert "**Classifiers:**\n- License :: OSI Approved" in md
         assert "**Summary:** Test pkg" in md
         assert "**Full Description:**" in md
+
+    def test_lmdb_cache_hit(self, monkeypatch):
+        # Mock time to be within age
+        now = time.time()
+        monkeypatch.setattr('time.time', lambda: now)
+
+        cached_data = {
+            'headers': {'timestamp': now - 100},  # Within CACHE_MAX_AGE_SECONDS
+            'json': json.dumps({"info": {"version": "1.0", "summary": "Test pkg"}}),
+            'md': "## testpkg\n**Version:** `1.0`\n**Summary:** Test pkg"
+        }
+        with patch('src.pypi_search_caching.pypi_search_caching.retrieve_package_data', return_value=cached_data):
+            with patch('requests.get') as mock_get:
+                md = fetch_project_details("testpkg", include_desc=True)
+                mock_get.assert_not_called()  # No request made
+                assert md == cached_data['md']
+
+    def test_lmdb_cache_hit_no_md(self, monkeypatch):
+        now = time.time()
+        monkeypatch.setattr('time.time', lambda: now)
+
+        cached_data = {
+            'headers': {'timestamp': now - 100},
+            'json': json.dumps({"info": {"version": "1.0", "summary": "Test pkg"}}),
+            'md': None
+        }
+        with patch('src.pypi_search_caching.pypi_search_caching.retrieve_package_data', return_value=cached_data):
+            with patch('requests.get') as mock_get:
+                md = fetch_project_details("testpkg", include_desc=False)
+                mock_get.assert_not_called()
+                assert "**Version:** `1.0`" in md
+
+    def test_lmdb_cache_miss(self, monkeypatch):
+        now = time.time()
+        monkeypatch.setattr('time.time', lambda: now)
+
+        json_data = {"info": {"version": "1.0", "summary": "Test pkg", "description": "Desc"}}
+        resp = MagicMock(status_code=200, json=lambda: json_data, raise_for_status=lambda: None)
+
+        with patch('src.pypi_search_caching.pypi_search_caching.retrieve_package_data', return_value=None):
+            with patch('requests.get', return_value=resp):
+                with patch('src.pypi_search_caching.pypi_search_caching.init_lmdb_env') as mock_init:
+                    with patch('src.pypi_search_caching.pypi_search_caching.store_package_data') as mock_store:
+                        md = fetch_project_details("testpkg", include_desc=True)
+                        mock_init.assert_called_once()
+                        mock_store.assert_called_once()
+                        assert "## testpkg" in md
+
+    def test_lmdb_cache_stale(self, monkeypatch):
+        now = time.time()
+        monkeypatch.setattr('time.time', lambda: now)
+
+        stale_timestamp = now - CACHE_MAX_AGE_SECONDS * 2
+        cached_data = {'headers': {'timestamp': stale_timestamp}, 'json': '{}', 'md': None}
+        json_data = {"info": {"version": "1.0"}}
+        resp = MagicMock(status_code=200, json=lambda: json_data, raise_for_status=lambda: None)
+
+        with patch('src.pypi_search_caching.pypi_search_caching.retrieve_package_data', return_value=cached_data):
+            with patch('requests.get', return_value=resp):
+                with patch('src.pypi_search_caching.pypi_search_caching.store_package_data') as mock_store:
+                    md = fetch_project_details("testpkg", include_desc=False)
+                    mock_store.assert_called_once()  # Treats as miss and stores
+
+    def test_lmdb_exception_fallback(self, monkeypatch):
+        now = time.time()
+        monkeypatch.setattr('time.time', lambda: now)
+
+        json_data = {"info": {"version": "1.0"}}
+        resp = MagicMock(status_code=200, json=lambda: json_data, raise_for_status=lambda: None)
+
+        with patch('src.pypi_search_caching.pypi_search_caching.init_lmdb_env', side_effect=Exception("LMDB error")):
+            with patch('requests.get', return_value=resp):
+                md = fetch_project_details("testpkg", include_desc=False)
+                assert "**Version:** `1.0`" in md  # Fallback to direct fetch succeeds
+
+    def test_404_cache_miss_no_store(self, monkeypatch):
+        now = time.time()
+        monkeypatch.setattr('time.time', lambda: now)
+
+        resp = MagicMock(status_code=404)
+
+        with patch('src.pypi_search_caching.pypi_search_caching.retrieve_package_data', return_value=None):
+            with patch('requests.get', return_value=resp):
+                with patch('src.pypi_search_caching.pypi_search_caching.store_package_data') as mock_store:
+                    result = fetch_project_details("nonexistent", include_desc=False)
+                    assert result is None
+                    mock_store.assert_not_called()  # No store on 404
+
+    def test_include_desc_false_stores_json_only(self, monkeypatch):
+        now = time.time()
+        monkeypatch.setattr('time.time', lambda: now)
+
+        json_data = {"info": {"version": "1.0", "description": "Desc"}}
+        resp = MagicMock(status_code=200, json=lambda: json_data, raise_for_status=lambda: None)
+
+        with patch('src.pypi_search_caching.pypi_search_caching.retrieve_package_data', return_value=None):
+            with patch('requests.get', return_value=resp):
+                with patch('src.pypi_search_caching.pypi_search_caching.store_package_data') as mock_store:
+                    md = fetch_project_details("testpkg", include_desc=False)
+                    mock_store.assert_called_once()
+                    # Verify md_data is None (no full desc processed)
+                    call_args = mock_store.call_args[0][3]  # md_data param
+                    assert call_args is None
+
+    def test_lmdb_roundtrip_compression(self, tmp_path, monkeypatch):
+        # Setup mock LMDB dir
+        mock_lmdb_dir = tmp_path / "lmdb"
+        mock_lmdb_dir.mkdir(parents=True)
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.LMDB_DIR', mock_lmdb_dir)
+
+        # Test data
+        package_name = "testpkg"
+        headers = {'timestamp': time.time()}
+        json_str = json.dumps({"info": {"version": "1.0"}})
+        md_str = "## Test MD"
+
+        # Store
+        env = init_lmdb_env()
+        store_package_data(env, package_name, headers, json_str, md_str)
+        env.close()
+
+        # Retrieve and verify roundtrip
+        env = init_lmdb_env()
+        retrieved = retrieve_package_data(env, package_name)
+        env.close()
+
+        assert retrieved is not None
+        assert retrieved['headers'] == headers
+        assert json.loads(retrieved['json']) == json.loads(json_str)
+        assert retrieved['md'] == md_str
 
     def test_404(self):
         resp = MagicMock(status_code=404)
