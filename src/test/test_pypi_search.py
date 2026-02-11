@@ -265,7 +265,7 @@ class TestFetchProjectDetails:
         assert json.loads(retrieved['json']) == json.loads(json_str)
         assert retrieved['md'] == md_str
 
-    def test_logging_in_fetch_project_details(self, caplog, monkeypatch):
+    def test_logging_in_fetch_project_details_cache_miss(self, caplog, monkeypatch):
         from src.pypi_search_caching.pypi_search_caching import fetch_project_details
         monkeypatch.setattr('time.time', lambda: 1234567890.0)
 
@@ -273,6 +273,10 @@ class TestFetchProjectDetails:
         with caplog.at_level(logging.INFO):
             details = fetch_project_details("testpkg", include_desc=False)
         assert "Cache miss for testpkg, fetching from PyPI" in caplog.text
+
+    def test_logging_in_fetch_project_details_cache_hit(self, caplog, monkeypatch):
+        from src.pypi_search_caching.pypi_search_caching import fetch_project_details
+        monkeypatch.setattr('time.time', lambda: 1234567890.0)
 
         # Cache hit (mock cached data)
         def mock_retrieve(env, pkg):
@@ -897,13 +901,16 @@ class TestLMDBCache:
         json_data = json.dumps({"info": {"version": "1.0"}})
         md_data = "# Test Markdown\nContent"
 
-        # Mock exception in txn.put (e.g., simulate write failure)
-        def mock_put(self, key, value):
-            raise Exception("Write error")
-        with patch('lmdb._Environment.begin') as mock_begin:
-            mock_txn = MagicMock()
-            mock_txn.put.side_effect = mock_put
-            mock_begin.return_value.__enter__.return_value = mock_txn
+        # Mock exception in the with block by patching begin to raise inside
+        def mock_begin_side_effect(*args, **kwargs):
+            class MockTxn:
+                def __enter__(self):
+                    raise Exception("Write error")
+                def __exit__(self, *exc):
+                    pass
+            return MockTxn()
+
+        with patch.object(env, 'begin', side_effect=mock_begin_side_effect):
             with pytest.raises(Exception, match="Write error"):
                 store_package_data(env, package_name, headers, json_data, md_data)
 
@@ -965,10 +972,19 @@ class TestLMDBCache:
         json_data = json.dumps({"info": {"version": "1.0"}})
         md_data = "# Test Markdown"
 
-        # Mock txn.put to raise exception (simulate write failure)
-        with patch('lmdb.Transaction.put', side_effect=Exception("Write error")):
+        # Mock exception in the with block by patching begin to raise inside, triggering warning
+        def mock_begin_side_effect(*args, **kwargs):
+            class MockTxn:
+                def __enter__(self):
+                    raise Exception("Write error")
+                def __exit__(self, exc_type, exc_val, exc_tb):
+                    return False  # Do not suppress exception
+            return MockTxn()
+
+        with patch.object(env, 'begin', side_effect=mock_begin_side_effect):
             with caplog.at_level(logging.WARNING):
-                store_package_data(env, package_name, headers, json_data, md_data)
+                with pytest.raises(Exception):
+                    store_package_data(env, package_name, headers, json_data, md_data)
                 assert "Failed to store testpkg in LMDB cache" in caplog.text
 
         env.close()
