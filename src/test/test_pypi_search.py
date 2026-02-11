@@ -532,6 +532,7 @@ class TestLMDBCache:
     def test_init_lmdb_env(self, mock_home, tmp_path):
         from pathlib import Path
         from src.pypi_search_caching.pypi_search_caching import init_lmdb_env, LMDB_DIR
+        import lmdb
 
         # Verify dir creation
         lmdb_path = tmp_path / ".cache" / "pypi_search" / "lmdb"
@@ -604,6 +605,7 @@ class TestLMDBCache:
     def test_retrieve_invalid_compressed_data(self, lmdb_env, mock_time):
         from src.pypi_search_caching.pypi_search_caching import store_package_data, retrieve_package_data
         import struct
+        import json
 
         pkg = "testpkg"
         headers = {'etag': '"test"', 'last_modified': 'test-time', 'timestamp': mock_time}
