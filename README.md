@@ -39,10 +39,10 @@ options:
 
 ```bash
 # Standard pip install
-pip install pypi_search_caching
+pip install pypi-search-caching
 
 # uv environment install
-uv pip install pypi_search_caching
+uv pip install pypi-search-caching
 ```
 
 - Installs pypi_search to ~/.local/bin
