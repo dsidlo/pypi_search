@@ -321,8 +321,16 @@ def retrieve_package_data(env: lmdb.Environment, package_name: str) -> Optional[
         md_compressed = value[pos:pos + len_m]
 
         headers = json.loads(headers_json)
-        json_data = zlib.decompress(json_compressed).decode('utf-8')
-        md_data = zlib.decompress(md_compressed).decode('utf-8') if len_m > 0 else None
+        try:
+            json_data = zlib.decompress(json_compressed).decode('utf-8')
+        except zlib.error:
+            return None
+        md_data = None
+        if len_m > 0:
+            try:
+                md_data = zlib.decompress(md_compressed).decode('utf-8')
+            except zlib.error:
+                return None
 
         return {'headers': headers, 'json': json_data, 'md': md_data}
 
@@ -497,6 +505,8 @@ def main():
                         help="Refresh the PyPi cache now. Happens before search.")
     parser.add_argument("--full-desc", "-f", action="store_true",
                         help="Include full description in details (with -d)")
+    parser.add_argument("--no-color", action="store_true",
+                        help="Disable color output")
 
     # Max number of descriptions fetched...
     max_desc = 10
