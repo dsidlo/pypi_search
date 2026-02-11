@@ -256,7 +256,7 @@ def save_packages_to_cache(packages):
             f.write(pkg + "\n")
 
 
-def fetch_all_package_names():
+def fetch_all_package_names(limit=None):
     url = PYPI_SIMPLE_URL
     print("Fetching fresh PyPI package index... (may take a few seconds)", file=sys.stderr)
 
@@ -269,11 +269,14 @@ def fetch_all_package_names():
 
     soup = BeautifulSoup(resp.text, "html.parser")
     packages = []
-
+    count = 0
     for link in soup.find_all("a"):
         name = link.get_text(strip=True).rstrip("/")
         if name:
             packages.append(name)
+            count += 1
+            if limit and count >= limit:
+                break
 
     print(f"Found {len(packages):,} package names.", file=sys.stderr)
     return packages

@@ -95,11 +95,11 @@ class TestCacheUtils:
         save_packages_to_cache(["pkg2", "pkg1", "pkg3"])
         assert test_cache_file.read_text() == "pkg1\npkg2\npkg3\n"
 
-class TestFetchAllPackageNames:
+class TestFetch100PackageNames:
     def test_success(self):
         html = '<html><a href="testpkg/">testpkg</a><a href="testpkg2/">testpkg2</a></html>'
         with patch('requests.get', return_value=MagicMock(text=html, status_code=200, raise_for_status=lambda: None)):
-            pkgs = fetch_all_package_names()
+            pkgs = fetch_all_package_names(limit=2)
         assert pkgs == ["testpkg", "testpkg2"]
 
     def test_network_error(self, capfd):
@@ -108,6 +108,11 @@ class TestFetchAllPackageNames:
                 fetch_all_package_names()
         captured = capfd.readouterr()
         assert "Error downloading PyPI index" in captured.err
+
+    def test_limited_fetch(self):
+        pkgs = fetch_all_package_names(limit=100)
+        assert len(pkgs) == 100
+        assert all(isinstance(p, str) and p.strip() for p in pkgs)
 
 class TestFetchProjectDetails:
     def test_success(self):

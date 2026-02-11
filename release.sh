@@ -4,15 +4,26 @@
 # the format v\d+\.d+\.\d+(?:-(Beta|Alpha))
 # Use perl to validate the input
 tag_in=$1
-version_tag=$(echo $tag_in | perl -ne 'if (m/^v(\d+)\.(\d+)\.(\d+)(?:-(Beta|Alpha))?$/){print $_}')
+version_tag=$(echo $tag_in | perl -ne 'if (m/^(\d+)\.(\d+)\.(\d+)(?:(a|b|rc))?(?:\d+)?$/){print $_}')
 if [ -z "$version_tag" ]; then
   echo "*** The release.sh command takes a version tag as an argument."
-  echo "    The version tag must match the regexp pattern: v\d+\.d+\.\d+(?:-(Beta|Alpha))"
+  echo "    The version tag must match the regexp pattern: /^(\d+)\.(\d+)\.(\d+)(?:-(a|b|rc)\d+)?$/"
   echo "    The version tag for {$tag_in} failed to match the pattern."
   exit 1
 else
-  echo ">>>> Preparing release: $version_tag"
+  echo ">>>> Input release tag validated: $version_tag"
 fi
+
+# Verify the the version_tab matches what is in pyproject.toml
+toml_ver=$(grep "version = \".*\"" pyproject.toml)
+toml_ver=$(echo $toml_ver | perl -ne 's/.*\"([^\"]+)\".*$/\1/; print($_)')
+if [ "$version_tag" != "$toml_ver" ]; then
+  echo "*** Input version_tag [$version_tag] does not match pyproject.toml version [$toml_ver]!"
+  exit 1
+fi
+echo ">>>> Input version_tag matches pyproject.toml version [$toml_ver]."
+
+echo ">>>> Preparing release: $version_tag"
 
 # Run flake8. Review syntax, code formatting, and complexity.
 ./flake8_src.sh
@@ -32,7 +43,7 @@ fi
 echo ">>>> pytest tests passed."
 
 # Test the build...
-uv build
+./build_run_test.sh
 if [ $? != 0 ]; then
   echo "*** Not ready for release due to 'uv build' errors."
   exit 1
