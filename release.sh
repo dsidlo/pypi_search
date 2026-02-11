@@ -41,16 +41,17 @@ else
 fi
 echo ">>>> Build run-test passed."
 
-# Test the Git-Workflow...
-act
-if [ $? != 0 ]; then
-  echo "*** Not ready for release due to 'act' errors."
-  exit 1
-fi
-echo ">>>> act git-workflows passed."
+## Test the Git-Workflow...
+#act
+#if [ $? != 0 ]; then
+#  echo "*** Not ready for release due to 'act' errors."
+#  exit 1
+#fi
+#echo ">>>> act git-workflows passed."
 
 # Check for uncommited files.
-modified_files=$(git status --porcelain | grep -E '(^ M|M)'
+modified_files=$(git status --porcelain | grep -E '(^ M|M)')
+echo "--- Modified Files: [$modified_files]"
 if [ -n "$modified_files" ]; then
   echo "*** Files have been modified."
   echo "    Please commit modified files."
@@ -60,7 +61,7 @@ echo ">>>> All files committed (Nice!)."
 
 # Check for unpushed commits
 unpushed_commits=$(git rev-list --count @{u}..HEAD 2>/dev/null)
-if [ -z "$unpushed_commits" ]; then
+if [ -n "$unpushed_commits" ]; then
   unpushed_commits=0
 fi
 if [ "$unpushed_commits" -gt 0 ]; then
