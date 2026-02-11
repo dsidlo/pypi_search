@@ -1,6 +1,6 @@
 # pypi_search
 
- - Current Version: v0.0.2-Beta
+ - Current Version: v0.0.3-Beta
 
 Search PyPI package names by regex pattern 🐍📦
 
@@ -39,10 +39,10 @@ options:
 
 ```bash
 # Standard pip install
-pip install pypi_search_cached
+pip install pypi_search_caching
 
 # uv environment install
-uv pip install pypi_search_cached
+uv pip install pypi_search_caching
 ```
 
 - Installs pypi_search to ~/.local/bin

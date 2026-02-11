@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pypi_search_caching"
-version = "0.0.2-Beta"
+version = "0.0.3-Beta"
 description = "Search PyPI package names by regex pattern, with caching and optional details."
 readme = "README.md"
 license = {text = "MIT"}
