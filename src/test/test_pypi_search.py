@@ -264,6 +264,25 @@ class TestFetchProjectDetails:
         assert json.loads(retrieved['json']) == json.loads(json_str)
         assert retrieved['md'] == md_str
 
+    def test_logging_in_fetch_project_details(self, caplog, monkeypatch):
+        from src.pypi_search_caching.pypi_search_caching import fetch_project_details
+        monkeypatch.setattr('time.time', lambda: 1234567890.0)
+
+        # Cache miss and fetch
+        with caplog.at_level(logging.INFO):
+            details = fetch_project_details("testpkg", include_desc=False)
+        assert "Cache miss for testpkg" in caplog.text
+        assert "Fetching testpkg from PyPI" in caplog.text
+
+        # Cache hit (mock cached data)
+        def mock_retrieve(env, pkg):
+            return {'headers': {'timestamp': 1234567890.0 - 100}, 'json': json.dumps({'info': {'version': '1.0'}}), 'md': None}
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.retrieve_package_data', mock_retrieve)
+        with caplog.at_level(logging.INFO):
+            details = fetch_project_details("testpkg", include_desc=False)
+        assert "Cache hit for testpkg" in caplog.text
+        assert "Stored testpkg in LMDB cache" not in caplog.text  # No store on hit
+
     def test_404(self):
         resp = MagicMock(status_code=404)
         with patch('requests.get', return_value=resp):
@@ -777,6 +796,65 @@ class TestLMDBCache:
         with env.begin(write=True) as txn:  # Verify not readonly
             pass
         env.close()
+
+    def test_msgpack_roundtrip(self, lmdb_env, mock_time):
+        from src.pypi_search_caching.pypi_search_caching import store_package_data, retrieve_package_data, extract_headers
+        import json
+        from unittest.mock import MagicMock
+        import requests
+
+        pkg = "testpkg"
+        mock_resp = MagicMock(spec=requests.Response)
+        mock_resp.headers = {'ETag': '"test"', 'Last-Modified': 'test-time'}
+        headers = extract_headers(mock_resp)
+        headers['timestamp'] = mock_time
+        json_data = json.dumps({'info': {'version': '1.0'}})
+        md_data = "# Test MD"
+
+        store_package_data(lmdb_env, pkg, headers, json_data, md_data)
+
+        retrieved = retrieve_package_data(lmdb_env, pkg)
+        assert retrieved is not None
+        assert retrieved['headers'] == headers
+        assert json.loads(retrieved['json']) == {'info': {'version': '1.0'}}
+        assert retrieved['md'] == md_data
+
+    def test_prune_lmdb_cache(self, lmdb_env, mock_time, monkeypatch):
+        from src.pypi_search_caching.pypi_search_caching import store_package_data, prune_lmdb_cache, retrieve_package_data
+        import json
+
+        old_time = mock_time - CACHE_MAX_AGE_SECONDS * 2
+        new_time = mock_time
+
+        # Store old entry
+        old_headers = {'timestamp': old_time}
+        store_package_data(lmdb_env, "oldpkg", old_headers, json.dumps({}), None)
+
+        # Store new entry
+        new_headers = {'timestamp': new_time}
+        store_package_data(lmdb_env, "newpkg", new_headers, json.dumps({}), None)
+
+        # Prune
+        monkeypatch.setattr('time.time', lambda: new_time)
+        pruned = prune_lmdb_cache(lmdb_env)
+        assert pruned == 1  # Only old deleted
+
+        # Verify old gone, new remains
+        assert retrieve_package_data(lmdb_env, "oldpkg") is None
+        assert retrieve_package_data(lmdb_env, "newpkg") is not None
+
+    def test_prune_invalid_entries(self, lmdb_env, mock_time, monkeypatch):
+        from src.pypi_search_caching.pypi_search_caching import prune_lmdb_cache
+        import struct
+
+        # Create invalid entry (short headers)
+        invalid_value = struct.pack('>I', 0) + b''  # Empty headers
+        with lmdb_env.begin(write=True) as txn:
+            txn.put(b'invalidpkg', invalid_value)
+
+        monkeypatch.setattr('time.time', lambda: mock_time)
+        pruned = prune_lmdb_cache(lmdb_env)
+        assert pruned == 1  # Invalid deleted
 
 # Run with pytest src/test/test_p.py --cov=src/p
 

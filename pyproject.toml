@@ -16,6 +16,7 @@ dependencies = [
     "hatchling",
     "html2text>=2025.4.15",
     "lmdb",
+    "msgpack>=1.1.0",
     "pypi>=2.1",
     "requests>=2.32.5",
     "rich>=14.3.2",

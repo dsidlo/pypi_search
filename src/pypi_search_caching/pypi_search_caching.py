@@ -27,6 +27,8 @@ import argparse
 import requests
 import time
 import os
+import logging
+import msgpack
 from rich.console import Console
 from rich.markdown import Markdown
 from pathlib import Path
@@ -269,6 +271,33 @@ def init_lmdb_env() -> lmdb.Environment:
     return env
 
 
+def prune_lmdb_cache(env: lmdb.Environment) -> int:
+    """Prune old entries from LMDB cache based on timestamp."""
+    now = time.time()
+    deleted = 0
+    with env.begin(write=True) as txn:
+        cursor = txn.cursor()
+        to_delete = []
+        for key, value in cursor:
+            try:
+                pos = 0
+                len_h, = struct.unpack('>I', value[pos:pos + 4])
+                pos += 4
+                headers_bytes = value[pos:pos + len_h]
+                headers = msgpack.unpackb(headers_bytes, raw=False)
+                timestamp = headers.get('timestamp', 0)
+                if now - timestamp > CACHE_MAX_AGE_SECONDS:
+                    to_delete.append(key)
+            except (struct.error, msgpack.ExtraData, KeyError):
+                # Invalid entry, delete it
+                to_delete.append(key)
+        for key in to_delete:
+            txn.delete(key)
+            deleted += 1
+    logging.info(f"Pruned {deleted} old entries from LMDB cache")
+    return deleted
+
+
 def extract_headers(resp: requests.Response) -> Dict[str, Any]:
     """Extract relevant headers from a requests response for caching."""
     return {
@@ -282,7 +311,7 @@ def store_package_data(env: lmdb.Environment, package_name: str, headers: Dict[s
     """Store package JSON data and optional Markdown in LMDB with headers, using compression and length-prefixing."""
     with env.begin(write=True) as txn:
         key = package_name.encode('utf-8')
-        headers_json = json.dumps(headers).encode('utf-8')
+        headers_bytes = msgpack.packb(headers)
         json_compressed = zlib.compress(json_data.encode('utf-8'))
         if md_data:
             md_compressed = zlib.compress(md_data.encode('utf-8'))
@@ -290,11 +319,12 @@ def store_package_data(env: lmdb.Environment, package_name: str, headers: Dict[s
             md_compressed = b''
 
         value = (
-            struct.pack('>I', len(headers_json)) + headers_json +
+            struct.pack('>I', len(headers_bytes)) + headers_bytes +
             struct.pack('>I', len(json_compressed)) + json_compressed +
             struct.pack('>I', len(md_compressed)) + md_compressed
         )
         txn.put(key, value)
+    logging.info(f"Stored {package_name} in LMDB cache")
 
 
 def retrieve_package_data(env: lmdb.Environment, package_name: str) -> Optional[Dict[str, Any]]:
@@ -308,7 +338,7 @@ def retrieve_package_data(env: lmdb.Environment, package_name: str) -> Optional[
         pos = 0
         len_h, = struct.unpack('>I', value[pos:pos + 4])
         pos += 4
-        headers_json = value[pos:pos + len_h].decode('utf-8')
+        headers_bytes = value[pos:pos + len_h]
         pos += len_h
 
         len_j, = struct.unpack('>I', value[pos:pos + 4])
@@ -320,7 +350,10 @@ def retrieve_package_data(env: lmdb.Environment, package_name: str) -> Optional[
         pos += 4
         md_compressed = value[pos:pos + len_m]
 
-        headers = json.loads(headers_json)
+        try:
+            headers = msgpack.unpackb(headers_bytes, raw=False)
+        except msgpack.ExtraData:
+            return None
         try:
             json_data = zlib.decompress(json_compressed).decode('utf-8')
         except zlib.error:
@@ -378,8 +411,10 @@ def fetch_project_details(package_name, console=None, include_desc=False):
     env = None
     try:
         env = init_lmdb_env()
+        prune_lmdb_cache(env)
         cached = retrieve_package_data(env, package_name)
         if cached and (time.time() - cached['headers']['timestamp']) < CACHE_MAX_AGE_SECONDS:
+            logging.info(f"Cache hit for {package_name}")
             data = json.loads(cached['json'])
             info = data.get('info', {})
             if include_desc and cached['md']:
@@ -408,7 +443,10 @@ def fetch_project_details(package_name, console=None, include_desc=False):
                 if summary:
                     md_parts.append(f"**Summary:** {summary}")
                 return '\n\n'.join(md_parts)
+        else:
+            logging.info(f"Cache miss for {package_name}, fetching from PyPI")
     except Exception:
+        logging.warning(f"LMDB error for {package_name}, falling back to direct fetch")
         # Fallback: proceed without LMDB caching
         pass
     finally:
@@ -425,6 +463,7 @@ def fetch_project_details(package_name, console=None, include_desc=False):
         resp.raise_for_status()
         data = resp.json()
     except (requests.RequestException, ValueError):
+        logging.error(f"Failed to fetch {package_name} from PyPI")
         return None
 
     info = data.get('info', {})
@@ -469,8 +508,7 @@ def fetch_project_details(package_name, console=None, include_desc=False):
         store_package_data(env, package_name, headers, json_data, md_to_store)
         env.close()
     except Exception:
-        # Fallback: no caching on LMDB failure
-        pass
+        logging.warning(f"Failed to store {package_name} in LMDB cache")
 
     return full_md
 
@@ -492,6 +530,7 @@ def get_version():
 
 
 def main():
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     parser = argparse.ArgumentParser(description="Search PyPI packages by regex")
     parser.add_argument('--version', '-V', action='version', version=get_version())
     parser.add_argument("pattern", help="Regular expression to match package names")
