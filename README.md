@@ -1,4 +1,4 @@
-# pypi_search
+# pypi-search-caching (pypi_search command)
 
  - Current Version: v0.0.3-Beta
 
