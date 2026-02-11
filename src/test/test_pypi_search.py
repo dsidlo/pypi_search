@@ -1,15 +1,16 @@
 import pytest
 from unittest.mock import patch, MagicMock
-import sys
-from pathlib import Path
-from io import StringIO
+from importlib.metadata import PackageNotFoundError
 from requests.exceptions import RequestException
-import re
 import time
 import os
 from textwrap import dedent
+import sys
+from pathlib import Path
 
-from src.pypi_search import (
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.pypi_search_caching import (
     main,
     get_packages,
     fetch_project_details,
@@ -32,6 +33,7 @@ from rich.table import Table
 from rich.console import Console
 
 
+
 def strip_ansi(text):
     import re
     return re.sub(r'\x1B\[[0-?]*[ -/]*[@-~]', '', text)
@@ -42,23 +44,29 @@ def capsys_disabled(capfd):
 
     pass
 
+@pytest.fixture(autouse=True)
+def mock_home(tmp_path, monkeypatch):
+    def mock_home(cls):
+        return tmp_path
+    monkeypatch.setattr('pathlib.Path.home', classmethod(mock_home))
+
 class TestCacheUtils:
     def test_ensure_cache_dir(self, tmp_path, monkeypatch):
         test_cache_dir = tmp_path / ".cache" / "p"
-        monkeypatch.setattr('src.pypi_search.CACHE_DIR', test_cache_dir)
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.CACHE_DIR', test_cache_dir)
         assert not test_cache_dir.exists()
         ensure_cache_dir()
         assert test_cache_dir.exists()
 
     def test_is_cache_valid_no_file(self, tmp_path, monkeypatch):
         test_cache_file = tmp_path / "test.cache"
-        monkeypatch.setattr('src.pypi_search.CACHE_FILE', test_cache_file)
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.CACHE_FILE', test_cache_file)
         # no write, so not exists
         assert not is_cache_valid()
 
     def test_is_cache_valid_recent(self, tmp_path, monkeypatch):
         test_cache_file = tmp_path / "test.cache"
-        monkeypatch.setattr('src.pypi_search.CACHE_FILE', test_cache_file)
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.CACHE_FILE', test_cache_file)
         now = time.time()
         monkeypatch.setattr('time.time', lambda: now)
         test_cache_file.write_text('')
@@ -67,7 +75,7 @@ class TestCacheUtils:
 
     def test_is_cache_valid_old(self, tmp_path, monkeypatch):
         test_cache_file = tmp_path / "test.cache"
-        monkeypatch.setattr('src.pypi_search.CACHE_FILE', test_cache_file)
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.CACHE_FILE', test_cache_file)
         now = time.time()
         monkeypatch.setattr('time.time', lambda: now)
         test_cache_file.write_text('')
@@ -76,14 +84,14 @@ class TestCacheUtils:
 
     def test_load_cached_packages(self, tmp_path, monkeypatch):
         test_cache_file = tmp_path / "test.cache"
-        monkeypatch.setattr('src.pypi_search.CACHE_FILE', test_cache_file)
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.CACHE_FILE', test_cache_file)
         test_cache_file.write_text("pkg1\npkg2\n\n\npkg3")
         pkgs = load_cached_packages()
         assert pkgs == ["pkg1", "pkg2", "pkg3"]
 
     def test_save_packages_to_cache(self, tmp_path, monkeypatch):
         test_cache_file = tmp_path / "test.cache"
-        monkeypatch.setattr('src.pypi_search.CACHE_FILE', test_cache_file)
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.CACHE_FILE', test_cache_file)
         save_packages_to_cache(["pkg2", "pkg1", "pkg3"])
         assert test_cache_file.read_text() == "pkg1\npkg2\npkg3\n"
 
@@ -128,39 +136,39 @@ class TestFetchProjectDetails:
 
 class TestGetPackages:
     def test_cache_valid(self):
-        with patch('src.pypi_search.is_cache_valid', return_value=True), patch('src.pypi_search.load_cached_packages', return_value=["pkg1"]):
+        with patch('src.pypi_search_caching.pypi_search_caching.is_cache_valid', return_value=True), patch('src.pypi_search_caching.pypi_search_caching.load_cached_packages', return_value=["pkg1"]):
             pkgs = get_packages(refresh_cache=False)
         assert pkgs == ["pkg1"]
 
     def test_cache_invalid_refresh(self):
-        with patch('src.pypi_search.is_cache_valid', return_value=False), patch('src.pypi_search.fetch_all_package_names', return_value=["pkg1"]), patch('src.pypi_search.save_packages_to_cache'):
+        with patch('src.pypi_search_caching.pypi_search_caching.is_cache_valid', return_value=False), patch('src.pypi_search_caching.pypi_search_caching.fetch_all_package_names', return_value=["pkg1"]), patch('src.pypi_search_caching.pypi_search_caching.save_packages_to_cache'):
             pkgs = get_packages(refresh_cache=True)
         assert pkgs == ["pkg1"]
 
 class TestMain:
-    @patch('src.pypi_search.get_packages')
+    @patch('src.pypi_search_caching.pypi_search_caching.get_packages')
     @patch('sys.exit')
     def test_invalid_regex(self, mock_exit, mock_get_packages, monkeypatch):
         monkeypatch.setattr(sys, 'argv', ['script', r'['])  # invalid regex
         main()
         mock_exit.assert_called_once_with(2)
 
-    @patch('src.pypi_search.get_packages', return_value=[])
+    @patch('src.pypi_search_caching.get_packages', return_value=[])
     def test_no_matches(self, mock_get, capsys):
         sys.argv = ['script', 'nonexistent']
         main()
         captured = capsys.readouterr()
         assert "No matching packages found." in strip_ansi(captured.out)
 
-    @patch('src.pypi_search.get_packages', return_value=["pkg1", "pkg1"])
+    @patch('src.pypi_search_caching.pypi_search_caching.get_packages', return_value=["pkg1", "pkg1"])
     def test_count_only(self, mock_get, capsys):
         sys.argv = ['script', 'pkg1', '--count-only']
         main()
         captured = capsys.readouterr()
         assert "Found 2 matching packages." in strip_ansi(captured.out)
 
-    @patch('src.pypi_search.get_packages', return_value=["pkg1", "pkg1"])
-    @patch('src.pypi_search.fetch_project_details', return_value="## testpkg\n**Version:** `1.0`")
+    @patch('src.pypi_search_caching.pypi_search_caching.get_packages', return_value=["pkg1", "pkg1"])
+    @patch('src.pypi_search_caching.pypi_search_caching.fetch_project_details', return_value="## testpkg\n**Version:** `1.0`")
     def test_list_with_desc(self, mock_details, mock_get, capsys):
         sys.argv = ['script', 'pkg1', '--desc']
         main()
@@ -169,8 +177,8 @@ class TestMain:
         assert "Version: 1.0" in strip_ansi(captured.out)
         assert "... and 0 more" not in captured.out  # <10
 
-    @patch('src.pypi_search.get_packages', return_value=["pkg"] * 15)
-    @patch('src.pypi_search.fetch_project_details', return_value="MD")
+    @patch('src.pypi_search_caching.pypi_search_caching.get_packages', return_value=["pkg"] * 15)
+    @patch('src.pypi_search_caching.pypi_search_caching.fetch_project_details', return_value="MD")
     def test_list_with_desc_full(self, mock_details, mock_get, capsys):
         sys.argv = ['script', 'pkg', '--desc', '--full-desc']
         main()
@@ -185,25 +193,26 @@ class TestMain:
         def mock_exit(code):
             raise SystemExit(code)
         monkeypatch.setattr('sys.exit', mock_exit)
-        with patch('tomllib.load') as mock_toml:
-            mock_toml.return_value = {'project': {'name': 'pypi_search_caching', 'version': '0.0.2-Beta'}}
+        with patch('importlib.metadata.version') as mock_version:
+            mock_version.return_value = '0.0.4b0'
             with pytest.raises(SystemExit) as exc:
                 main()
             assert exc.value.code == 0
             captured = capsys.readouterr()
-            assert captured.out.strip() == 'pypi_search_caching 0.0.2-Beta'
+            assert captured.out.strip() == 'pypi-search-caching 0.0.4b0'
 
     def test_version_file_missing(self, monkeypatch, capsys):
         monkeypatch.setattr(sys, 'argv', ['prog', '--version'])  # optional, since error early
         def mock_exit(code):
             raise SystemExit(code)
         monkeypatch.setattr('sys.exit', mock_exit)
-        with patch('pathlib.Path.exists', return_value=False):
-            with pytest.raises(SystemExit) as exc:
-                main()
-            assert exc.value.code == 1
-            captured = capsys.readouterr()
-            assert 'pyproject.toml not found' in captured.err
+        with patch('importlib.metadata.version', side_effect=PackageNotFoundError):
+            with patch('pathlib.Path.exists', return_value=False):
+                with pytest.raises(SystemExit) as exc:
+                    main()
+                assert exc.value.code == 1
+                captured = capsys.readouterr()
+                assert 'pyproject.toml not found and package not installed.' in captured.err
 
 
 class TestRSTTableUtils:

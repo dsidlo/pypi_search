@@ -1,6 +1,6 @@
 # pypi-search-caching (pypi_search command)
 
- - Current Version: v0.0.3-Beta
+ - Current Version: v0.0.4b1
 
 Search PyPI package names by regex pattern 🐍📦
 

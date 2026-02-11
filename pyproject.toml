@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pypi_search_caching"
-version = "0.0.3-Beta"
+version = "0.0.4b1"
 description = "Search PyPI package names by regex pattern, with caching and optional details."
 readme = "README.md"
 license = {text = "MIT"}
@@ -20,7 +20,7 @@ dependencies = [
     "rich>=14.3.2",
 ]
 [project.scripts]
-pipy_search = "pypi_search:main"
+pypi_search = "pypi_search_caching:main"
 
 [project.urls]
 Homepage = "https://github.com/dsidlo/pypi_search/blob/main/README.md"
@@ -30,10 +30,11 @@ Repository = "https://github.com/dsidlo/pypi_search"
 Changelog = "https://github.com/dsidlo/pypi_search/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
-      packages = ["src/pypi_search"]
+      packages = ["src/pypi_search_caching"]
+      excludes = ["src/pypi_search_caching/test/**"]
 
 [tool.uv]
-    package = false
+    package = true
 
 [dependency-groups]
 dev = [

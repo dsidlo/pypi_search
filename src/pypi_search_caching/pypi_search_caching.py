@@ -31,6 +31,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from pathlib import Path
 import tomllib
+import importlib.metadata
 from bs4 import BeautifulSoup
 from rich.theme import Theme
 from rich.table import Table
@@ -337,13 +338,19 @@ def fetch_project_details(package_name, console=None, include_desc=False):
 
 
 def get_version():
-    toml_path = Path(__file__).parent.parent / "pyproject.toml"
-    if not toml_path.exists():
-        print("pyproject.toml not found.", file=sys.stderr)
-        sys.exit(1)
-    with toml_path.open('rb') as f:
-        data = tomllib.load(f)
-    return f"{data['project']['name']} {data['project']['version']}"
+    try:
+        version = importlib.metadata.version('pypi-search-caching')
+        return f"pypi-search-caching {version}"
+    except importlib.metadata.PackageNotFoundError:
+        # Fallback for development mode
+        toml_path = Path(__file__).parent.parent.parent / "pyproject.toml"
+        if toml_path.exists():
+            with toml_path.open('rb') as f:
+                data = tomllib.load(f)
+            return f"{data['project']['name']} {data['project']['version']}"
+        else:
+            print("pyproject.toml not found and package not installed.", file=sys.stderr)
+            sys.exit(1)
 
 
 def main():

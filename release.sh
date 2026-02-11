@@ -24,7 +24,7 @@ fi
 echo ">>>> flake8 scans passed."
 
 # Run all tests...
-pytest src/test/ --cov=src.pypi_search --cov-report=html -v
+uv run pytest src/test/ --cov=src.pypi_search_caching --cov-report=html -v
 if [ $? != 0 ]; then
   echo "*** Not ready for release due to 'pytest' errors."
   exit 1

@@ -1,0 +1,37 @@
+from .pypi_search_caching import (
+    main,
+    get_packages,
+    fetch_project_details,
+    fetch_all_package_names,
+    is_cache_valid,
+    load_cached_packages,
+    save_packages_to_cache,
+    ensure_cache_dir,
+    CACHE_FILE,
+    CACHE_DIR,
+    CACHE_MAX_AGE_SECONDS,
+    convert_rst_table,
+    parse_simple_rst_list_table,
+    rich_table_to_markdown,
+    extract_raw_html_blocks,
+    convert_rst_code_blocks
+)
+
+__all__ = [
+    'main',
+    'get_packages',
+    'fetch_project_details',
+    'fetch_all_package_names',
+    'is_cache_valid',
+    'load_cached_packages',
+    'save_packages_to_cache',
+    'ensure_cache_dir',
+    'CACHE_FILE',
+    'CACHE_DIR',
+    'CACHE_MAX_AGE_SECONDS',
+    'convert_rst_table',
+    'parse_simple_rst_list_table',
+    'rich_table_to_markdown',
+    'extract_raw_html_blocks',
+    'convert_rst_code_blocks'
+]
