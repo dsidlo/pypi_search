@@ -272,8 +272,7 @@ class TestFetchProjectDetails:
         # Cache miss and fetch
         with caplog.at_level(logging.INFO):
             details = fetch_project_details("testpkg", include_desc=False)
-        assert "Cache miss for testpkg" in caplog.text
-        assert "Fetching testpkg from PyPI" in caplog.text
+        assert "Cache miss for testpkg, fetching from PyPI" in caplog.text
 
         # Cache hit (mock cached data)
         def mock_retrieve(env, pkg):
@@ -856,6 +855,123 @@ class TestLMDBCache:
         monkeypatch.setattr('time.time', lambda: mock_time)
         pruned = prune_lmdb_cache(lmdb_env)
         assert pruned == 1  # Invalid deleted
+
+    def test_prune_lmdb_cache_timestamp(self, lmdb_env, mock_time, monkeypatch):
+        from src.pypi_search_caching.pypi_search_caching import prune_lmdb_cache, store_package_data
+        import json
+
+        old_time = mock_time - CACHE_MAX_AGE_SECONDS * 2
+        new_time = mock_time
+
+        # Store old entry
+        old_headers = {'timestamp': old_time}
+        store_package_data(lmdb_env, "oldpkg", old_headers, json.dumps({}), None)
+
+        # Store new entry
+        new_headers = {'timestamp': new_time}
+        store_package_data(lmdb_env, "newpkg", new_headers, json.dumps({}), None)
+
+        # Prune
+        monkeypatch.setattr('time.time', lambda: new_time)
+        pruned = prune_lmdb_cache(lmdb_env)
+        assert pruned == 1  # Only old deleted
+
+        # Verify old gone, new remains
+        retrieved_old = retrieve_package_data(lmdb_env, "oldpkg")
+        retrieved_new = retrieve_package_data(lmdb_env, "newpkg")
+        assert retrieved_old is None
+        assert retrieved_new is not None
+
+    def test_store_package_data_exception(self, tmp_path, monkeypatch):
+        from src.pypi_search_caching.pypi_search_caching import store_package_data, init_lmdb_env
+        import json
+
+        # Setup mock LMDB dir
+        mock_lmdb_dir = tmp_path / "lmdb"
+        mock_lmdb_dir.mkdir(parents=True)
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.LMDB_DIR', mock_lmdb_dir)
+
+        env = init_lmdb_env()
+        package_name = "testpkg"
+        headers = {'timestamp': time.time()}
+        json_data = json.dumps({"info": {"version": "1.0"}})
+        md_data = "# Test Markdown\nContent"
+
+        # Mock exception in txn.put (e.g., simulate write failure)
+        def mock_put(self, key, value):
+            raise Exception("Write error")
+        with patch('lmdb._Environment.begin') as mock_begin:
+            mock_txn = MagicMock()
+            mock_txn.put.side_effect = mock_put
+            mock_begin.return_value.__enter__.return_value = mock_txn
+            with pytest.raises(Exception, match="Write error"):
+                store_package_data(env, package_name, headers, json_data, md_data)
+
+        env.close()
+
+    def test_retrieve_package_data_zlib_error(self, lmdb_env, mock_time):
+        from src.pypi_search_caching.pypi_search_caching import store_package_data, retrieve_package_data
+        import struct
+        import json
+
+        pkg = "testpkg"
+        headers = {'timestamp': mock_time}
+        headers_json = json.dumps(headers).encode('utf-8')
+        json_str = json.dumps({"info": {"version": "1.0"}})
+        # Corrupt json_compressed
+        json_compressed = b'invalid_zlib'  # Invalid for decompress
+        md_compressed = b''
+
+        # Manually create invalid value
+        value = (
+            struct.pack('>I', len(headers_json)) + headers_json +
+            struct.pack('>I', len(json_compressed)) + json_compressed +
+            struct.pack('>I', len(md_compressed)) + md_compressed
+        )
+
+        with lmdb_env.begin(write=True) as txn:
+            txn.put(pkg.encode('utf-8'), value)
+
+        retrieved = retrieve_package_data(lmdb_env, pkg)
+        assert retrieved is None  # Handles invalid compressed data gracefully
+
+    def test_fetch_project_details_lmdb_warning(self, caplog, monkeypatch):
+        from src.pypi_search_caching.pypi_search_caching import fetch_project_details
+        monkeypatch.setattr('time.time', lambda: 1234567890.0)
+
+        json_data = {"info": {"version": "1.0"}}
+        resp = MagicMock(status_code=200, json=lambda: json_data, raise_for_status=lambda: None)
+
+        # Mock LMDB init to raise exception (warning case)
+        with caplog.at_level(logging.WARNING):
+            with patch('src.pypi_search_caching.pypi_search_caching.init_lmdb_env', side_effect=Exception("LMDB error")):
+                with patch('requests.get', return_value=resp):
+                    md = fetch_project_details("testpkg", include_desc=False)
+                    assert "**Version:** `1.0`" in md  # Fallback to direct fetch succeeds
+                    assert "LMDB error for testpkg, falling back to direct fetch" in caplog.text
+
+    def test_store_package_data_lmdb_warning(self, caplog, tmp_path, monkeypatch):
+        from src.pypi_search_caching.pypi_search_caching import store_package_data, init_lmdb_env
+        import json
+
+        # Setup mock LMDB dir
+        mock_lmdb_dir = tmp_path / "lmdb"
+        mock_lmdb_dir.mkdir(parents=True)
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.LMDB_DIR', mock_lmdb_dir)
+
+        env = init_lmdb_env()
+        package_name = "testpkg"
+        headers = {'timestamp': time.time()}
+        json_data = json.dumps({"info": {"version": "1.0"}})
+        md_data = "# Test Markdown"
+
+        # Mock txn.put to raise exception (simulate write failure)
+        with patch('lmdb.Transaction.put', side_effect=Exception("Write error")):
+            with caplog.at_level(logging.WARNING):
+                store_package_data(env, package_name, headers, json_data, md_data)
+                assert "Failed to store testpkg in LMDB cache" in caplog.text
+
+        env.close()
 
 # Run with pytest src/test/test_p.py --cov=src/p
 
