@@ -921,9 +921,8 @@ class TestLMDBCache:
 
         env.begin.return_value = MockTxn()
 
-        with patch('lmdb.Environment.begin', return_value=MockTxn()):
-            with pytest.raises(Exception, match="LMDB write error"):
-                store_package_data(env, package_name, headers, json_data, md_data)
+        with pytest.raises(Exception, match="LMDB write error"):
+            store_package_data(env, package_name, headers, json_data, md_data)
 
     def test_retrieve_package_data_zlib_error(self, lmdb_env, mock_time):
         from src.pypi_search_caching.pypi_search_caching import store_package_data, retrieve_package_data
@@ -987,11 +986,10 @@ class TestLMDBCache:
 
         env.begin.return_value = MockTxn()
 
-        with patch('lmdb.Environment.begin', return_value=MockTxn()):
-            with caplog.at_level(logging.WARNING):
-                with pytest.raises(Exception, match="LMDB write error"):
-                    store_package_data(env, package_name, headers, json_data, md_data)
-                assert "Failed to store testpkg in LMDB cache" in caplog.text
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(Exception, match="LMDB write error"):
+                store_package_data(env, package_name, headers, json_data, md_data)
+            assert "Failed to store testpkg in LMDB cache" in caplog.text
 
 # Run with pytest src/test/test_p.py --cov=src/p
 
