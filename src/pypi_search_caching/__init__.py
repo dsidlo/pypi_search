@@ -23,6 +23,8 @@ from .pypi_search_caching import (
     convert_rst_code_blocks
 )
 
+from .pypi_search_caching import CacheManager
+
 __all__ = [
     'main',
     'get_packages',
@@ -33,6 +35,8 @@ __all__ = [
     'save_packages_to_cache',
     'ensure_cache_dir',
     'CACHE_FILE',
+    'CacheManager',
+    'CacheManager',
     'LMDB_DIR',
     'init_lmdb_env',
     'extract_headers',

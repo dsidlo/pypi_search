@@ -613,7 +613,7 @@ def main():
                         help="Refresh the PyPi cache now. Happens before search.")
     parser.add_argument("--full-desc", "-f", action="store_true",
                         help="Include full description in details (with -d)")
-    parser.add_argument("--no-color", action="store_true",
+    parser.add_argument("--no-color", "-c", action="store_true",
                         help="Disable color output")
 
     # Max number of descriptions fetched...
@@ -622,7 +622,14 @@ def main():
     args = parser.parse_args()
     # console = Console(force_terminal=True, theme=custom_theme)
     no_color = args.no_color
-    console = Console(no_color=no_color, force_terminal=not no_color, theme=custom_theme if not no_color else None, color_system="truecolor" if not no_color else None)
+    os.environ['LESS'] = '-R'
+    if no_color:
+        console = Console(no_color=no_color, force_terminal=False,
+                          theme=None, color_system=None)
+    else:
+        console = Console(force_terminal=True,
+                          theme=custom_theme,
+                          color_system="truecolor")
 
     with console.pager(styles=True):
 

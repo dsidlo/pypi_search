@@ -1,5 +1,7 @@
 # DyTopo Agent Prompts
 
+**Paper:** [Dynamic Topology Routing for Multi-Agent Reasoning via Semantic Matching](https://arxiv.org/pdf/2602.06039)
+
 ## Advantage of DyTopo Agent Interaction
 
 One of the most striking advantages of the DyTopo framework is indeed how dramatically it boosts the performance of smaller or weaker LLM backbones—such as Qwen3-8B—bringing them much closer to (or even surpassing in relative gains) the results achieved by much larger models.
@@ -1231,10 +1233,10 @@ This design ensures workers remain focused and adaptive without needing round-sp
 
 ## Manager/Worker Comms via Redis
 - DT-Manager DOES NOT break down the User-Task into smaller, manageable chunks. Instead, it allows decomposition of the task through evolving guidance through each round.
-- DT-Manager creates a ReqSLUID (Shortened LUID [time based for sequentiality]) based on the current User-Task.
+- DT-Manager creates a ReqSLUID and TaskSLUID (Shortened LUID [time based for sequentiality]) based on the current User-Task.
   - The Round Sequence is appended to the UUID to ensure uniqueness and traceability.
     - Use the python-sandbox to generate SLUIDs. 
-- Keys
+- Keys: DyTopo Messaging with Redis
   - Message to Worker Agents
     - [To-Workers:<ReqSLUID>:0]
   - Worker to Manager
