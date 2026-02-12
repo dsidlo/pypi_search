@@ -352,8 +352,9 @@ class TestFetchProjectDetails:
         monkeypatch.setattr('time.time', lambda: 1234567890.0)
 
         # Cache miss and fetch
-        with caplog.at_level(logging.INFO):
-            details = fetch_project_details("testpkg", include_desc=False)
+        with patch('src.pypi_search_caching.pypi_search_caching.retrieve_package_data', return_value=None):
+            with caplog.at_level(logging.INFO):
+                details = fetch_project_details("testpkg", include_desc=False, verbose=True)
         assert "Cache miss for testpkg, fetching from PyPI" in caplog.text
 
     def test_logging_in_fetch_project_details_cache_hit(self, caplog, monkeypatch):
@@ -365,7 +366,7 @@ class TestFetchProjectDetails:
             return {'headers': {'timestamp': 1234567890.0 - 100}, 'json': json.dumps({'info': {'version': '1.0'}}), 'md': None}
         monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.retrieve_package_data', mock_retrieve)
         with caplog.at_level(logging.INFO):
-            details = fetch_project_details("testpkg", include_desc=False)
+            details = fetch_project_details("testpkg", include_desc=False, verbose=True)
         assert "Cache hit for testpkg" in caplog.text
         assert "Stored testpkg in LMDB cache" not in caplog.text  # No store on hit
 

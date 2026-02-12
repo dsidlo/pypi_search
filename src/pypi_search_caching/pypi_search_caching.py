@@ -327,7 +327,7 @@ def init_lmdb_env() -> lmdb.Environment:
     return env
 
 
-def prune_lmdb_cache(env: lmdb.Environment) -> int:
+def prune_lmdb_cache(env: lmdb.Environment, verbose=False) -> int:
     """Prune old entries from LMDB cache based on timestamp."""
     now = time.time()
     deleted = 0
@@ -352,7 +352,8 @@ def prune_lmdb_cache(env: lmdb.Environment) -> int:
         for key in to_delete:
             txn.delete(key)
             deleted += 1
-    logging.info(f"Pruned {deleted} old entries from LMDB cache")
+    if verbose:
+        logging.info(f"Pruned {deleted} old entries from LMDB cache")
     return deleted
 
 
@@ -473,14 +474,15 @@ def get_packages(refresh_cache):
     return packages
 
 
-def fetch_project_details(package_name, console=None, include_desc=False):
+def fetch_project_details(package_name, console=None, include_desc=False, verbose=False):
     env = None
     try:
         env = init_lmdb_env()
-        prune_lmdb_cache(env)
+        prune_lmdb_cache(env, verbose=verbose)
         cached = retrieve_package_data(env, package_name)
         if cached and (time.time() - cached['headers']['timestamp']) < LMDB_CACHE_MAX_AGE_SECONDS:
-            logging.info(f"Cache hit for {package_name}")
+            if verbose:
+                logging.info(f"Cache hit for {package_name}")
             data = json.loads(cached['json'])
             info = data.get('info', {})
             if include_desc and cached['md']:
@@ -510,7 +512,8 @@ def fetch_project_details(package_name, console=None, include_desc=False):
                     md_parts.append(f"**Summary:** {summary}")
                 return '\n\n'.join(md_parts)
         else:
-            logging.info(f"Cache miss for {package_name}, fetching from PyPI")
+            if verbose:
+                logging.info(f"Cache miss for {package_name}, fetching from PyPI")
     except Exception:
         logging.warning(f"LMDB error for {package_name}, falling back to direct fetch")
         # Fallback: proceed without LMDB caching
@@ -529,7 +532,8 @@ def fetch_project_details(package_name, console=None, include_desc=False):
         resp.raise_for_status()
         data = resp.json()
     except (requests.RequestException, ValueError):
-        logging.error(f"Failed to fetch {package_name} from PyPI")
+        if verbose:
+            logging.error(f"Failed to fetch {package_name} from PyPI")
         return None
 
     info = data.get('info', {})
@@ -615,11 +619,15 @@ def main():
                         help="Include full description in details (with -d)")
     parser.add_argument("--no-color", "-c", action="store_true",
                         help="Disable color output")
+    parser.add_argument("--max_desc", "-m", type=int, default=10,
+                        help="Change Max number of descriptions fetched")
+    parser.add_argument("--verbose", "-v", action="store_true",
+                        help="Enable Verbose output")
+    args = parser.parse_args()
 
     # Max number of descriptions fetched...
-    max_desc = 10
+    max_desc = args.max_desc
 
-    args = parser.parse_args()
     # console = Console(force_terminal=True, theme=custom_theme)
     no_color = args.no_color
     os.environ['LESS'] = '-R'
@@ -671,7 +679,7 @@ def main():
             if args.desc:
                 # String of i space padded to 4 digits
                 console.rule(f"[cyan]{i}.[/] [bold]{pkg}[/bold]")
-                details_md = fetch_project_details(pkg, console=console, include_desc=args.full_desc)
+                details_md = fetch_project_details(pkg, console=console, include_desc=args.full_desc, verbose=args.verbose)
                 if details_md:
                     # Filter out '.. image::' from details_md
                     details_md = '\n'.join([line for line in details_md.split('\n')
