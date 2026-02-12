@@ -900,16 +900,11 @@ class TestLMDBCache:
         assert retrieved_old is None
         assert retrieved_new is not None
 
-    def test_store_package_data_exception(self, tmp_path, monkeypatch):
-        from src.pypi_search_caching.pypi_search_caching import store_package_data, init_lmdb_env
+    def test_store_package_data_exception(self, monkeypatch):
+        from src.pypi_search_caching.pypi_search_caching import store_package_data
         import json
 
-        # Setup mock LMDB dir
-        mock_lmdb_dir = tmp_path / "lmdb"
-        mock_lmdb_dir.mkdir(parents=True)
-        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.LMDB_DIR', mock_lmdb_dir)
-
-        env = init_lmdb_env()
+        env = MagicMock()
         package_name = "testpkg"
         headers = {'timestamp': time.time()}
         json_data = json.dumps({"info": {"version": "1.0"}})
@@ -924,14 +919,11 @@ class TestLMDBCache:
             def put(self, key, value):
                 pass  # No-op, simulates successful put before commit failure
 
-        def mock_begin_side_effect(*args, **kwargs):
-            return MockTxn()
+        env.begin.return_value = MockTxn()
 
-        with patch('lmdb.Environment.begin', side_effect=mock_begin_side_effect):
+        with patch('lmdb.Environment.begin', return_value=MockTxn()):
             with pytest.raises(Exception, match="LMDB write error"):
                 store_package_data(env, package_name, headers, json_data, md_data)
-
-        env.close()
 
     def test_retrieve_package_data_zlib_error(self, lmdb_env, mock_time):
         from src.pypi_search_caching.pypi_search_caching import store_package_data, retrieve_package_data
@@ -974,16 +966,11 @@ class TestLMDBCache:
                     assert "**Version:** `1.0`" in md  # Fallback to direct fetch succeeds
                     assert "LMDB error for testpkg, falling back to direct fetch" in caplog.text
 
-    def test_store_package_data_lmdb_warning(self, caplog, tmp_path, monkeypatch):
-        from src.pypi_search_caching.pypi_search_caching import store_package_data, init_lmdb_env
+    def test_store_package_data_lmdb_warning(self, caplog, monkeypatch):
+        from src.pypi_search_caching.pypi_search_caching import store_package_data
         import json
 
-        # Setup mock LMDB dir
-        mock_lmdb_dir = tmp_path / "lmdb"
-        mock_lmdb_dir.mkdir(parents=True)
-        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.LMDB_DIR', mock_lmdb_dir)
-
-        env = init_lmdb_env()
+        env = MagicMock()
         package_name = "testpkg"
         headers = {'timestamp': time.time()}
         json_data = json.dumps({"info": {"version": "1.0"}})
@@ -998,16 +985,13 @@ class TestLMDBCache:
             def put(self, key, value):
                 pass  # No-op, simulates successful put before commit failure
 
-        def mock_begin_side_effect(*args, **kwargs):
-            return MockTxn()
+        env.begin.return_value = MockTxn()
 
-        with patch('lmdb.Environment.begin', side_effect=mock_begin_side_effect):
+        with patch('lmdb.Environment.begin', return_value=MockTxn()):
             with caplog.at_level(logging.WARNING):
                 with pytest.raises(Exception, match="LMDB write error"):
                     store_package_data(env, package_name, headers, json_data, md_data)
                 assert "Failed to store testpkg in LMDB cache" in caplog.text
-
-        env.close()
 
 # Run with pytest src/test/test_p.py --cov=src/p
 
