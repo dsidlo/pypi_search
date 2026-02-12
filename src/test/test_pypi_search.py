@@ -780,16 +780,17 @@ class TestLMDBCache:
         return mock_cache_dir
 
     @pytest.fixture
-    def lmdb_env(self, tmp_path):
+    def lmdb_env(self, tmp_path, monkeypatch):
         from src.pypi_search_caching.pypi_search_caching import init_lmdb_env, LMDB_DIR
         import os
         original_lmdb_dir = LMDB_DIR
-        LMDB_DIR = tmp_path / "lmdb"
-        LMDB_DIR.mkdir(parents=True, exist_ok=True)
+        test_lmdb_dir = tmp_path / "lmdb"
+        test_lmdb_dir.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.LMDB_DIR', test_lmdb_dir)
         env = init_lmdb_env()
         yield env
         env.close()
-        LMDB_DIR = original_lmdb_dir
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.LMDB_DIR', original_lmdb_dir)
 
     @pytest.fixture
     def mock_time(self, monkeypatch):
@@ -988,14 +989,11 @@ class TestLMDBCache:
         assert json.loads(retrieved['json']) == {'info': {'version': '1.0'}}
         assert retrieved['md'] == md_data
 
-    def test_prune_lmdb_cache(self, lmdb_env, mock_time, monkeypatch):
-        from src.pypi_search_caching.pypi_search_caching import store_package_data, prune_lmdb_cache, retrieve_package_data
+    def test_prune_lmdb_cache(self, lmdb_env, mock_time):
+        from src.pypi_search_caching.pypi_search_caching import store_package_data, prune_lmdb_cache, retrieve_package_data, LMDB_CACHE_MAX_AGE_SECONDS
         import json
-        import msgpack
-        import zlib
-        import struct
 
-        old_time = mock_time - CACHE_MAX_AGE_SECONDS * 2
+        old_time = mock_time - LMDB_CACHE_MAX_AGE_SECONDS * 2
         new_time = mock_time
 
         # Store old entry
@@ -1014,7 +1012,6 @@ class TestLMDBCache:
         retrieved_new = retrieve_package_data(lmdb_env, 'newpkg')
         assert retrieved_new is not None
         assert retrieved_new['headers']['timestamp'] == new_time
-        monkeypatch.setattr('time.time', lambda: mock_time)
 
         # Prune
         pruned = prune_lmdb_cache(lmdb_env)
@@ -1025,7 +1022,7 @@ class TestLMDBCache:
         assert retrieve_package_data(lmdb_env, "newpkg") is not None
         assert retrieve_package_data(lmdb_env, "newpkg")['headers']['timestamp'] == new_time
 
-    def test_prune_invalid_entries(self, lmdb_env, mock_time, monkeypatch):
+    def test_prune_invalid_entries(self, lmdb_env, mock_time):
         from src.pypi_search_caching.pypi_search_caching import prune_lmdb_cache
         import struct
 
@@ -1034,7 +1031,6 @@ class TestLMDBCache:
         with lmdb_env.begin(write=True) as txn:
             txn.put(b'invalidpkg', invalid_value)
 
-        monkeypatch.setattr('time.time', lambda: mock_time)
         pruned = prune_lmdb_cache(lmdb_env)
         assert pruned == 1  # Invalid deleted
 

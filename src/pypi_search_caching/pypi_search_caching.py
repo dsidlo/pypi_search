@@ -52,7 +52,8 @@ CACHE_DIR = Path.home() / ".cache" / "pypi_search"
 CACHE_FILE = CACHE_DIR / "pypi_search.cache"
 CACHE_MAX_AGE_SECONDS = 23 * 3600  # 23 hours
 
-LMDB_DIR = CACHE_DIR / "lmdb"\n\nLMDB_CACHE_MAX_AGE_SECONDS = 7 * 24 * 3600  # 7 days
+LMDB_DIR = CACHE_DIR / "lmdb"
+LMDB_CACHE_MAX_AGE_SECONDS = 7 * 24 * 3600  # 7 days
 
 from pygments.style import Style
 from pygments.token import Token
@@ -343,9 +344,9 @@ def prune_lmdb_cache(env: lmdb.Environment) -> int:
                 headers_bytes = value[pos:pos + len_h]
                 headers = msgpack.unpackb(headers_bytes, raw=False)
                 timestamp = headers.get('timestamp')
-                if timestamp is None or now - timestamp > CACHE_MAX_AGE_SECONDS:
+                if timestamp is None or now - timestamp > LMDB_CACHE_MAX_AGE_SECONDS:
                     to_delete.append(key)
-            except (struct.error, msgpack.exceptions.MsgpackError):
+            except (struct.error, msgpack.ExtraData, ValueError):
                 # Invalid entry, delete it
                 to_delete.append(key)
         for key in to_delete:
@@ -478,7 +479,7 @@ def fetch_project_details(package_name, console=None, include_desc=False):
         env = init_lmdb_env()
         prune_lmdb_cache(env)
         cached = retrieve_package_data(env, package_name)
-        if cached and (time.time() - cached['headers']['timestamp']) < CACHE_MAX_AGE_SECONDS:
+        if cached and (time.time() - cached['headers']['timestamp']) < LMDB_CACHE_MAX_AGE_SECONDS:
             logging.info(f"Cache hit for {package_name}")
             data = json.loads(cached['json'])
             info = data.get('info', {})
