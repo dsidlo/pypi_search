@@ -927,7 +927,7 @@ class TestLMDBCache:
         def mock_begin_side_effect(*args, **kwargs):
             return MockTxn()
 
-        with patch.object(env, 'begin', side_effect=mock_begin_side_effect):
+        with patch('lmdb.Environment.begin', side_effect=mock_begin_side_effect):
             with pytest.raises(Exception, match="LMDB write error"):
                 store_package_data(env, package_name, headers, json_data, md_data)
 
@@ -1001,7 +1001,7 @@ class TestLMDBCache:
         def mock_begin_side_effect(*args, **kwargs):
             return MockTxn()
 
-        with patch.object(env, 'begin', side_effect=mock_begin_side_effect):
+        with patch('lmdb.Environment.begin', side_effect=mock_begin_side_effect):
             with caplog.at_level(logging.WARNING):
                 with pytest.raises(Exception, match="LMDB write error"):
                     store_package_data(env, package_name, headers, json_data, md_data)
