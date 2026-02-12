@@ -366,7 +366,8 @@ def extract_headers(resp: requests.Response) -> Dict[str, Any]:
     }
 
 
-def store_package_data(env: lmdb.Environment, package_name: str, headers: Dict[str, Any], json_data: str, md_data: Optional[str] = None):
+def store_package_data(env: lmdb.Environment, package_name: str, headers: Dict[str,
+                       Any], json_data: str, md_data: Optional[str] = None, verbose=False):
     """Store package JSON data and optional Markdown in LMDB with headers, using compression and length-prefixing."""
     try:
         with env.begin(write=True) as txn:
@@ -384,7 +385,8 @@ def store_package_data(env: lmdb.Environment, package_name: str, headers: Dict[s
                 struct.pack('>I', len(md_compressed)) + md_compressed
             )
             txn.put(key, value)
-        logging.info(f"Stored {package_name} in LMDB cache")
+        if verbose:
+             logging.info(f"Stored {package_name} in LMDB cache")
     except Exception:
         logging.warning(f"Failed to store {package_name} in LMDB cache")
         raise
@@ -466,7 +468,7 @@ def get_package_long_description(package_name: str, verbose: bool = False) -> st
             env = init_lmdb_env()
             headers = extract_headers(resp)
             json_data = json.dumps(data)
-            store_package_data(env, package_name, headers, json_data)
+            store_package_data(env, package_name, headers, json_data, verbose=True)
             env.close()
         except Exception as e:
             if verbose:

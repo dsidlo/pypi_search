@@ -164,8 +164,9 @@ class TestFetch100PackageNames:
         assert "Error downloading PyPI index" in captured.err
 
     def test_limited_fetch(self):
-        pkgs = fetch_all_package_names(limit=100)
-        assert len(pkgs) == 100
+        pkg_cnt=700000
+        pkgs = fetch_all_package_names(limit=pkg_cnt)
+        assert len(pkgs) == pkg_cnt
         assert all(isinstance(p, str) and p.strip() for p in pkgs)
 
 class TestFetchProjectDetails:
@@ -311,7 +312,7 @@ class TestFetchProjectDetails:
 
         # Store
         env = init_lmdb_env()
-        store_package_data(env, package_name, headers, json_str, md_str)
+        store_package_data(env, package_name, headers, json_str, md_str, verbose=True)
         env.close()
 
         # Retrieve and verify roundtrip
@@ -843,7 +844,7 @@ class TestLMDBCache:
         pkg = "testpkg"
         headers = {'etag': '"test"', 'last_modified': 'test-time', 'timestamp': mock_time}
         json_data = json.dumps({'info': {'version': '1.0'}})
-        store_package_data(lmdb_env, pkg, headers, json_data)
+        store_package_data(lmdb_env, pkg, headers, json_data, verbose=True)
 
         retrieved = retrieve_package_data(lmdb_env, pkg)
         assert retrieved is not None
@@ -859,7 +860,7 @@ class TestLMDBCache:
         headers = {'etag': '"test"', 'last_modified': 'test-time', 'timestamp': mock_time}
         json_data = json.dumps({'info': {'version': '1.0'}})
         md_data = "# Test Markdown\nContent"
-        store_package_data(lmdb_env, pkg, headers, json_data, md_data)
+        store_package_data(lmdb_env, pkg, headers, json_data, md_data, verbose=True)
 
         retrieved = retrieve_package_data(lmdb_env, pkg)
         assert retrieved is not None
@@ -983,7 +984,7 @@ class TestLMDBCache:
         json_data = json.dumps({'info': {'version': '1.0'}})
         md_data = "# Test MD"
 
-        store_package_data(lmdb_env, pkg, headers, json_data, md_data)
+        store_package_data(lmdb_env, pkg, headers, json_data, md_data, verbose=True)
 
         retrieved = retrieve_package_data(lmdb_env, pkg)
         assert retrieved is not None
@@ -1001,11 +1002,11 @@ class TestLMDBCache:
 
         # Store old entry
         old_headers = {'etag': '"test"', 'last_modified': 'test-time', 'timestamp': old_time}
-        store_package_data(lmdb_env, 'oldpkg', old_headers, json.dumps({}), None)
+        store_package_data(lmdb_env, 'oldpkg', old_headers, json.dumps({}), verbose=True)
 
         # Store new entry
         new_headers = {'etag': '"test"', 'last_modified': 'test-time', 'timestamp': new_time}
-        store_package_data(lmdb_env, 'newpkg', new_headers, json.dumps({}), None)
+        store_package_data(lmdb_env, 'newpkg', new_headers, json.dumps({}), verbose=True)
 
         # Verify storage
         retrieved_old = retrieve_package_data(lmdb_env, 'oldpkg')
@@ -1060,7 +1061,7 @@ class TestLMDBCache:
         env.begin.return_value = MockTxn()
 
         with pytest.raises(Exception, match="LMDB write error"):
-            store_package_data(env, package_name, headers, json_data, md_data)
+            store_package_data(env, package_name, headers, json_data, md_data, verbose=True)
 
     def test_retrieve_package_data_zlib_error(self, lmdb_env, mock_time):
         from src.pypi_search_caching.pypi_search_caching import store_package_data, retrieve_package_data
@@ -1126,7 +1127,7 @@ class TestLMDBCache:
 
         with caplog.at_level(logging.WARNING):
             with pytest.raises(Exception, match="LMDB write error"):
-                store_package_data(env, package_name, headers, json_data, md_data)
+                store_package_data(env, package_name, headers, json_data, md_data, verbose=True)
             assert "Failed to store testpkg in LMDB cache" in caplog.text
 
 # Run with pytest src/test/test_p.py --cov=src/p
