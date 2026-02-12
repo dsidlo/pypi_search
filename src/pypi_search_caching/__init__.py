@@ -45,5 +45,6 @@ __all__ = [
     'parse_simple_rst_list_table',
     'rich_table_to_markdown',
     'extract_raw_html_blocks',
-    'convert_rst_code_blocks'
+    'convert_rst_code_blocks',
+    'CacheManager'
 ]

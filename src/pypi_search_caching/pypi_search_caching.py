@@ -41,7 +41,7 @@ import lmdb
 import zlib
 import json
 import struct
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 
 
@@ -241,6 +241,60 @@ def rich_table_to_markdown(table: Table, console: Console = None) -> str:
     return "\n".join(lines)
 
 
+class CacheManager:
+    def __init__(self):
+        self.env = None
+
+    def _get_env(self):
+        if self.env is None:
+            self.env = init_lmdb_env()
+        return self.env
+
+    def load(self) -> Optional[List[str]]:
+        try:
+            env = self._get_env()
+            with env.begin() as txn:
+                value = txn.get(b'all_packages')
+                if value:
+                    cache_entry = json.loads(value.decode('utf-8'))
+                    compressed = cache_entry['data']
+                    ts = cache_entry['timestamp']
+                    if time.time() - ts < CACHE_MAX_AGE_SECONDS:
+                        packages_json = zlib.decompress(compressed).decode('utf-8')
+                        return json.loads(packages_json)
+        except Exception as e:
+            logging.warning(f"LMDB load error: {e}")
+
+        # Migration/fallback to legacy
+        if CACHE_FILE.exists():
+            try:
+                packages = load_cached_packages()
+                self.save(packages)
+                return packages
+            except Exception as e:
+                logging.warning(f"Legacy load/migration error: {e}")
+
+        return None
+
+    def save(self, packages: List[str]):
+        try:
+            packages_json = json.dumps(packages).encode('utf-8')
+            compressed = zlib.compress(packages_json)
+            cache_entry = {'data': compressed, 'timestamp': time.time()}
+            value = json.dumps(cache_entry).encode('utf-8')
+            env = self._get_env()
+            with env.begin(write=True) as txn:
+                txn.put(b'all_packages', value)
+            # Delete legacy if exists
+            if CACHE_FILE.exists():
+                CACHE_FILE.unlink()
+                logging.info("Migrated legacy cache to LMDB and deleted legacy file")
+        except Exception as e:
+            logging.warning(f"LMDB save error: {e}")
+            # Fallback to legacy
+            save_packages_to_cache(packages)
+
+
 def ensure_cache_dir():
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -400,15 +454,18 @@ def fetch_all_package_names(limit=None):
 
 def get_packages(refresh_cache):
     ensure_cache_dir()
-    if is_cache_valid() and not refresh_cache:
-        packages = load_cached_packages()
-        print(f"Using cache: {len(packages):,} pkgs (age < 23h)", file=sys.stderr)
-        return packages
-    else:
-        packages = fetch_all_package_names()
-        save_packages_to_cache(packages)
-        print(f"Cache updated: {len(packages):,} pkgs.", file=sys.stderr)
-        return packages
+    cm = CacheManager()
+    if not refresh_cache:
+        packages = cm.load()
+        if packages is not None:
+            print(f"Using cache: {len(packages):,} pkgs", file=sys.stderr)
+            return packages
+
+    # Fetch and save
+    packages = fetch_all_package_names()
+    cm.save(packages)
+    print(f"Cache updated: {len(packages):,} pkgs.", file=sys.stderr)
+    return packages
 
 
 def fetch_project_details(package_name, console=None, include_desc=False):
