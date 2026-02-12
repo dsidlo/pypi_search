@@ -924,6 +924,7 @@ class TestLMDBCache:
         import struct
         import json
         import msgpack
+        import zlib
 
         pkg = "testpkg"
         headers = {'timestamp': mock_time}
@@ -990,6 +991,7 @@ class TestLMDBCache:
         import json
         import msgpack
         import zlib
+        import struct
 
         old_time = mock_time - CACHE_MAX_AGE_SECONDS * 2
         new_time = mock_time
