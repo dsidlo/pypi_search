@@ -22,6 +22,7 @@ from src.pypi_search_caching import (
     save_packages_to_cache,
     ensure_cache_dir,
     CACHE_FILE,
+    CacheManager,
     CACHE_DIR,
     CACHE_MAX_AGE_SECONDS,
     convert_rst_table,
@@ -378,7 +379,7 @@ class TestFetchProjectDetails:
 
 class TestGetPackages:
     def test_cache_valid(self):
-        with patch('src.pypi_search_caching.pypi_search_caching.is_cache_valid', return_value=True), patch('src.pypi_search_caching.pypi_search_caching.load_cached_packages', return_value=["pkg1"]):
+        with patch.object(CacheManager, 'load', return_value=["pkg1"]):
             pkgs = get_packages(refresh_cache=False)
         assert pkgs == ["pkg1"]
 
@@ -468,9 +469,10 @@ class TestMain:
         sys.argv = ['script', 'pkg']
         main()
         captured = capsys.readouterr()
-        assert "1. pkg" in captured.out
-        assert "Total: 1" in captured.out
-        assert "Version:" not in captured.out  # No details
+        out = strip_ansi(captured.out)
+        assert "1. pkg" in out
+        assert "Total: 1" in out
+        assert "Version:" not in out  # No details
 
     def test_main_no_args_check(self, monkeypatch, capfd):
         monkeypatch.setattr(sys, 'argv', [])
@@ -998,29 +1000,11 @@ class TestLMDBCache:
 
         # Store old entry
         old_headers = {'timestamp': old_time}
-        old_json_data = json.dumps({})
-        old_headers_bytes = msgpack.packb(old_headers)
-        old_json_compressed = zlib.compress(old_json_data.encode('utf-8'))
-        old_value = (
-            struct.pack('>I', len(old_headers_bytes)) + old_headers_bytes +
-            struct.pack('>I', len(old_json_compressed)) + old_json_compressed +
-            struct.pack('>I', 0) + b''
-        )
-        with lmdb_env.begin(write=True) as txn:
-            txn.put(b'oldpkg', old_value)
+        store_package_data(lmdb_env, 'oldpkg', old_headers, json.dumps({}), None)
 
         # Store new entry
         new_headers = {'timestamp': new_time}
-        new_json_data = json.dumps({})
-        new_headers_bytes = msgpack.packb(new_headers)
-        new_json_compressed = zlib.compress(new_json_data.encode('utf-8'))
-        new_value = (
-            struct.pack('>I', len(new_headers_bytes)) + new_headers_bytes +
-            struct.pack('>I', len(new_json_compressed)) + new_json_compressed +
-            struct.pack('>I', 0) + b''
-        )
-        with lmdb_env.begin(write=True) as txn:
-            txn.put(b'newpkg', new_value)
+        store_package_data(lmdb_env, 'newpkg', new_headers, json.dumps({}), None)
 
         # Prune
         monkeypatch.setattr('time.time', lambda: new_time)

@@ -422,7 +422,8 @@ def retrieve_package_data(env: lmdb.Environment, package_name: str) -> Optional[
             try:
                 md_data = zlib.decompress(md_compressed).decode('utf-8')
             except zlib.error:
-                return None
+                logging.warning(f"Invalid MD compression for {package_name}, using json only")
+                md_data = None
 
         return {'headers': headers, 'json': json_data, 'md': md_data}
 
@@ -593,6 +594,9 @@ def get_version():
 
 def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    if len(sys.argv) < 2:
+        print("Please provide a regex pattern.", file=sys.stderr)
+        sys.exit(1)
     parser = argparse.ArgumentParser(description="Search PyPI packages by regex")
     parser.add_argument('--version', '-V', action='version', version=get_version())
     parser.add_argument("pattern", help="Regular expression to match package names")
@@ -694,7 +698,4 @@ def main():
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Please provide a regex pattern.", file=sys.stderr)
-        sys.exit(1)
     main()
