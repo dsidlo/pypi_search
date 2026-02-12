@@ -150,6 +150,16 @@ zope.app.http
 Total matches: 413
 ```
 
+Filter by long description using regex:
+
+```shell
+pypi_search "aio" --search "async" --count-only
+```
+
+*Note: --search uses partial matching (re.search).*
+
+
+
 ## My Dev Environment: 
 
   - **Python Env:** uv

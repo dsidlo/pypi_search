@@ -1133,3 +1133,63 @@ class TestLMDBCache:
 
 
 
+class TestSearchFilter:
+    def test_filter_by_description(self, monkeypatch, capsys):
+        # Mock all_packages to some name matches
+        mock_packages = ["package-a", "package-b", "package-c"]
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_packages', lambda refresh: mock_packages)
+
+        # Mock get_package_long_description
+        def mock_get_desc(pkg, verbose=False):
+            if pkg == "package-a":
+                return "Description with keyword"
+            elif pkg == "package-b":
+                return "No match here"
+            elif pkg == "package-c":
+                return "Another with keyword"
+            return ""
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_package_long_description', mock_get_desc)
+
+        # Set argv for pattern that matches all, and --search "keyword"
+        import sys
+        sys.argv = ['script', 'package.*', '--search', 'key', '--count-only']
+
+        main()
+
+        captured = capsys.readouterr()
+        stderr = captured.err
+        assert "Filtering by description..." in stderr
+        assert "After description filter: 2 matches" in stderr
+        stdout = strip_ansi(captured.out)
+        assert "Found 2 matching packages." in stdout
+
+    def test_invalid_search_regex(self, monkeypatch, capsys):
+        mock_packages = ["package"]
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_packages', lambda refresh: mock_packages)
+        import sys
+        sys.argv = ['script', 'package', '--search', '[']  # invalid regex
+
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 2
+
+        captured = capsys.readouterr()
+        assert "Invalid search regex" in strip_ansi(captured.out)
+
+    def test_search_no_filter_if_no_arg(self, monkeypatch, capsys):
+        mock_packages = ["package-a", "package-b"]
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_packages', lambda refresh: mock_packages)
+
+        # Mock but not called
+        def mock_get_desc(pkg, verbose=False):
+            return "desc"
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_package_long_description', mock_get_desc)
+
+        import sys
+        sys.argv = ['script', 'package', '--count-only']
+
+        main()
+
+        captured = capsys.readouterr()
+        assert "Filtering by description..." not in captured.err
+        assert "Found 2 matching packages." in strip_ansi(captured.out)

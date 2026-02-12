@@ -432,7 +432,61 @@ def retrieve_package_data(env: lmdb.Environment, package_name: str) -> Optional[
         return {'headers': headers, 'json': json_data, 'md': md_data}
 
 
+
+
+def get_package_long_description(package_name: str, verbose: bool = False) -> str:
+    env = None
+    try:
+        env = init_lmdb_env()
+        cached = retrieve_package_data(env, package_name)
+        if cached and (time.time() - cached['headers']['timestamp']) < LMDB_CACHE_MAX_AGE_SECONDS:
+            if verbose:
+                logging.info(f"Cache hit for description of {package_name}")
+            data = json.loads(cached['json'])
+            return data.get('info', {}).get('description', '')
+    except Exception as e:
+        if verbose:
+            logging.warning(f"Cache error for {package_name}: {e}")
+    finally:
+        if env:
+            env.close()
+
+    # Fetch fresh
+    url = PYPI_JSON_URL.format(package_name=package_name)
+    try:
+        resp = requests.get(url, timeout=10)
+        if resp.status_code == 404:
+            return ''
+        resp.raise_for_status()
+        data = resp.json()
+        desc = data.get('info', {}).get('description', '')
+
+        # Store to cache
+        try:
+            env = init_lmdb_env()
+            headers = extract_headers(resp)
+            json_data = json.dumps(data)
+            store_package_data(env, package_name, headers, json_data)
+            env.close()
+        except Exception as e:
+            if verbose:
+                logging.warning(f"Failed to cache description for {package_name}: {e}")
+
+        if verbose:
+            logging.info(f"Fetched description for {package_name} from PyPI")
+        return desc
+    except requests.RequestException as e:
+        if verbose:
+            logging.error(f"Failed to fetch description for {package_name}: {e}")
+        return ''
+    except ValueError as e:
+        if verbose:
+            logging.error(f"Invalid JSON for {package_name}: {e}")
+        return ''
+
+
 def fetch_all_package_names(limit=None):
+
     url = PYPI_SIMPLE_URL
     print("Fetching fresh PyPI package index... (may take a few seconds)", file=sys.stderr)
 
@@ -623,6 +677,8 @@ def main():
                         help="Change Max number of descriptions fetched")
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="Enable Verbose output")
+    parser.add_argument("--search", "-s", default=None,
+                        help="Regex pattern to filter by long description")
     args = parser.parse_args()
 
     # Max number of descriptions fetched...
@@ -646,7 +702,7 @@ def main():
             flags = re.IGNORECASE if args.ignore_case else 0
             # Strip '"' & '"' from args.pattern
             args.pattern = args.pattern.strip('"').strip("'")
-            regex = re.compile(f"^{args.pattern}$", flags)
+            regex = re.compile(args.pattern, flags)
         except re.error as e:
             console.print(f"[red][bold]\nThe Regular Expression Pattern is Invalid:[/bold][/red]\n" +
                           f"  [yellow]- {e}[/yellow]\n")
@@ -658,6 +714,23 @@ def main():
             return
 
         matches = [pkg for pkg in all_packages if regex.search(pkg)]
+
+        if args.search:
+            try:
+                search_flags = re.IGNORECASE if args.ignore_case else 0
+                search_regex = re.compile(args.search, search_flags)
+            except re.error as e:
+                console.print(f"[red]Invalid search regex: {e}[/red]")
+                sys.exit(2)
+
+            print("Filtering by description...", file=sys.stderr)
+            filtered_matches = []
+            for pkg in matches:
+                desc = get_package_long_description(pkg, verbose=args.verbose)
+                if search_regex.search(desc):
+                    filtered_matches.append(pkg)
+            matches = filtered_matches
+            print(f"After description filter: {len(matches)} matches", file=sys.stderr)
 
         if args.count_only:
             console.print(f"Found {len(matches):,} matching packages.")
