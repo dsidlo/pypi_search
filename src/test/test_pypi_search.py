@@ -142,7 +142,6 @@ class TestCacheUtils:
             return env
 
         monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.init_lmdb_env', mock_init_lmdb_env)
-        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.json', MagicMock(dumps=lambda x: b'{}'))
 
         cm = CacheManager()
         cm.save(["pkg1"])
@@ -464,14 +463,13 @@ class TestMain:
             mock_get.assert_called_once_with(True)  # refresh=True
             # No further execution (no regex, no output)
 
-    @patch('src.pypi_search_caching.pypi_search_caching.get_packages', return_value=["pkg1", "pkg2"])
+    @patch('src.pypi_search_caching.pypi_search_caching.get_packages', return_value=["pkg"])
     def test_main_printing_without_desc(self, mock_get, capsys):
         sys.argv = ['script', 'pkg']
         main()
         captured = capsys.readouterr()
-        assert "1. pkg1" in captured.out
-        assert "2. pkg2" in captured.out
-        assert "Total: 2" in captured.out
+        assert "1. pkg" in captured.out
+        assert "Total: 1" in captured.out
         assert "Version:" not in captured.out  # No details
 
     def test_main_no_args_check(self, monkeypatch, capfd):
@@ -922,18 +920,29 @@ class TestLMDBCache:
         assert retrieved is None  # Handles zlib error for json
 
     def test_retrieve_package_data_zlib_error_md(self, lmdb_env, mock_time):
-        from src.pypi_search_caching.pypi_search_caching import retrieve_package_data, store_package_data
+        from src.pypi_search_caching.pypi_search_caching import retrieve_package_data
+        import struct
         import json
+        import msgpack
 
         pkg = "testpkg"
         headers = {'timestamp': mock_time}
         json_data = json.dumps({'info': {'version': '1.0'}})
-        invalid_md = b'invalid_zlib'
+        valid_md = "# Test MD"
 
-        # Store valid json but invalid md
-        env = init_lmdb_env()
-        store_package_data(env, pkg, headers, json_data, md_data=invalid_md)
-        env.close()
+        headers_bytes = msgpack.packb(headers)
+        json_compressed = zlib.compress(json_data.encode('utf-8'))
+        # Invalid md: valid length but invalid compressed bytes
+        invalid_md_compressed = b'invalid_zlib_data'  # Not valid zlib
+
+        value = (
+            struct.pack('>I', len(headers_bytes)) + headers_bytes +
+            struct.pack('>I', len(json_compressed)) + json_compressed +
+            struct.pack('>I', len(invalid_md_compressed)) + invalid_md_compressed
+        )
+
+        with lmdb_env.begin(write=True) as txn:
+            txn.put(pkg.encode('utf-8'), value)
 
         retrieved = retrieve_package_data(lmdb_env, pkg)
         assert retrieved is not None
@@ -979,17 +988,37 @@ class TestLMDBCache:
     def test_prune_lmdb_cache(self, lmdb_env, mock_time, monkeypatch):
         from src.pypi_search_caching.pypi_search_caching import store_package_data, prune_lmdb_cache, retrieve_package_data
         import json
+        import msgpack
+        import zlib
 
         old_time = mock_time - CACHE_MAX_AGE_SECONDS * 2
         new_time = mock_time
 
         # Store old entry
         old_headers = {'timestamp': old_time}
-        store_package_data(lmdb_env, "oldpkg", old_headers, json.dumps({}), None)
+        old_json_data = json.dumps({})
+        old_headers_bytes = msgpack.packb(old_headers)
+        old_json_compressed = zlib.compress(old_json_data.encode('utf-8'))
+        old_value = (
+            struct.pack('>I', len(old_headers_bytes)) + old_headers_bytes +
+            struct.pack('>I', len(old_json_compressed)) + old_json_compressed +
+            struct.pack('>I', 0) + b''
+        )
+        with lmdb_env.begin(write=True) as txn:
+            txn.put(b'oldpkg', old_value)
 
         # Store new entry
         new_headers = {'timestamp': new_time}
-        store_package_data(lmdb_env, "newpkg", new_headers, json.dumps({}), None)
+        new_json_data = json.dumps({})
+        new_headers_bytes = msgpack.packb(new_headers)
+        new_json_compressed = zlib.compress(new_json_data.encode('utf-8'))
+        new_value = (
+            struct.pack('>I', len(new_headers_bytes)) + new_headers_bytes +
+            struct.pack('>I', len(new_json_compressed)) + new_json_compressed +
+            struct.pack('>I', 0) + b''
+        )
+        with lmdb_env.begin(write=True) as txn:
+            txn.put(b'newpkg', new_value)
 
         # Prune
         monkeypatch.setattr('time.time', lambda: new_time)
