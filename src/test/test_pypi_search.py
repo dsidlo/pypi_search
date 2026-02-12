@@ -1014,9 +1014,9 @@ class TestLMDBCache:
         retrieved_new = retrieve_package_data(lmdb_env, 'newpkg')
         assert retrieved_new is not None
         assert retrieved_new['headers']['timestamp'] == new_time
+        monkeypatch.setattr('time.time', lambda: mock_time)
 
         # Prune
-        monkeypatch.setattr('time.time', lambda: new_time)
         pruned = prune_lmdb_cache(lmdb_env)
         assert pruned == 1  # Only old deleted
 

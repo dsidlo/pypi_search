@@ -52,7 +52,7 @@ CACHE_DIR = Path.home() / ".cache" / "pypi_search"
 CACHE_FILE = CACHE_DIR / "pypi_search.cache"
 CACHE_MAX_AGE_SECONDS = 23 * 3600  # 23 hours
 
-LMDB_DIR = CACHE_DIR / "lmdb"
+LMDB_DIR = CACHE_DIR / "lmdb"\n\nLMDB_CACHE_MAX_AGE_SECONDS = 7 * 24 * 3600  # 7 days
 
 from pygments.style import Style
 from pygments.token import Token
@@ -334,6 +334,8 @@ def prune_lmdb_cache(env: lmdb.Environment) -> int:
         cursor = txn.cursor()
         to_delete = []
         for key, value in cursor:
+            if key == b'all_packages':
+                continue
             try:
                 pos = 0
                 len_h, = struct.unpack('>I', value[pos:pos + 4])
@@ -343,7 +345,7 @@ def prune_lmdb_cache(env: lmdb.Environment) -> int:
                 timestamp = headers.get('timestamp')
                 if timestamp is None or now - timestamp > CACHE_MAX_AGE_SECONDS:
                     to_delete.append(key)
-            except (struct.error, msgpack.ExtraData, ValueError):
+            except (struct.error, msgpack.exceptions.MsgpackError):
                 # Invalid entry, delete it
                 to_delete.append(key)
         for key in to_delete:
