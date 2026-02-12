@@ -236,6 +236,7 @@ class TestFetchProjectDetails:
                         assert "## testpkg" in md
 
     def test_lmdb_cache_stale(self, monkeypatch):
+        from src.pypi_search_caching.pypi_search_caching import LMDB_CACHE_MAX_AGE_SECONDS
         now = time.time()
         monkeypatch.setattr('time.time', lambda: now)
 
@@ -991,7 +992,8 @@ class TestLMDBCache:
         assert retrieved['md'] == md_data
 
     def test_prune_lmdb_cache(self, lmdb_env, mock_time):
-        from src.pypi_search_caching.pypi_search_caching import store_package_data, prune_lmdb_cache, retrieve_package_data, LMDB_CACHE_MAX_AGE_SECONDS
+        from src.pypi_search_caching.pypi_search_caching import LMDB_CACHE_MAX_AGE_SECONDS
+        from src.pypi_search_caching.pypi_search_caching import store_package_data, prune_lmdb_cache, retrieve_package_data
         import json
 
         old_time = mock_time - LMDB_CACHE_MAX_AGE_SECONDS * 2
