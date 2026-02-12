@@ -897,6 +897,48 @@ class TestLMDBCache:
         retrieved = retrieve_package_data(lmdb_env, pkg)
         assert retrieved is None  # Handles invalid compressed data gracefully
 
+    def test_retrieve_package_data_zlib_error_json(self, lmdb_env, mock_time):
+        from src.pypi_search_caching.pypi_search_caching import retrieve_package_data
+        import struct
+        import json
+
+        pkg = "testpkg"
+        headers = {'timestamp': mock_time}
+        headers_json = json.dumps(headers).encode('utf-8')
+        invalid_json = b'invalid_zlib'  # Invalid for decompress
+        md_compressed = b''
+
+        # Manually create invalid value for json
+        value = (
+            struct.pack('>I', len(headers_json)) + headers_json +
+            struct.pack('>I', len(invalid_json)) + invalid_json +
+            struct.pack('>I', len(md_compressed)) + md_compressed
+        )
+
+        with lmdb_env.begin(write=True) as txn:
+            txn.put(pkg.encode('utf-8'), value)
+
+        retrieved = retrieve_package_data(lmdb_env, pkg)
+        assert retrieved is None  # Handles zlib error for json
+
+    def test_retrieve_package_data_zlib_error_md(self, lmdb_env, mock_time):
+        from src.pypi_search_caching.pypi_search_caching import retrieve_package_data, store_package_data
+        import json
+
+        pkg = "testpkg"
+        headers = {'timestamp': mock_time}
+        json_data = json.dumps({'info': {'version': '1.0'}})
+        invalid_md = b'invalid_zlib'
+
+        # Store valid json but invalid md
+        env = init_lmdb_env()
+        store_package_data(env, pkg, headers, json_data, md_data=invalid_md)
+        env.close()
+
+        retrieved = retrieve_package_data(lmdb_env, pkg)
+        assert retrieved is not None
+        assert retrieved['md'] is None  # Handles zlib error for md, keeps json
+
     def test_lmdb_env_map_size_and_options(self, tmp_path, monkeypatch):
         from src.pypi_search_caching.pypi_search_caching import init_lmdb_env
 
