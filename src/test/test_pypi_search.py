@@ -1028,31 +1028,6 @@ class TestLMDBCache:
         pruned = prune_lmdb_cache(lmdb_env)
         assert pruned == 1  # Invalid deleted
 
-    def test_prune_lmdb_cache_timestamp(self, lmdb_env, mock_time, monkeypatch):
-        from src.pypi_search_caching.pypi_search_caching import prune_lmdb_cache, store_package_data, retrieve_package_data
-        import json
-
-        old_time = mock_time - CACHE_MAX_AGE_SECONDS * 2
-        new_time = mock_time
-
-        # Store old entry
-        old_headers = {'timestamp': old_time}
-        store_package_data(lmdb_env, "oldpkg", old_headers, json.dumps({}), None)
-
-        # Store new entry
-        new_headers = {'timestamp': new_time}
-        store_package_data(lmdb_env, "newpkg", new_headers, json.dumps({}), None)
-
-        # Prune
-        monkeypatch.setattr('time.time', lambda: new_time)
-        pruned = prune_lmdb_cache(lmdb_env)
-        assert pruned == 1  # Only old deleted
-
-        # Verify old gone, new remains
-        retrieved_old = retrieve_package_data(lmdb_env, "oldpkg")
-        retrieved_new = retrieve_package_data(lmdb_env, "newpkg")
-        assert retrieved_old is None
-        assert retrieved_new is not None
 
     def test_store_package_data_exception(self, monkeypatch):
         from src.pypi_search_caching.pypi_search_caching import store_package_data

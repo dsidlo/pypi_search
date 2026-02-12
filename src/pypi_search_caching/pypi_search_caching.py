@@ -340,10 +340,10 @@ def prune_lmdb_cache(env: lmdb.Environment) -> int:
                 pos += 4
                 headers_bytes = value[pos:pos + len_h]
                 headers = msgpack.unpackb(headers_bytes, raw=False)
-                timestamp = headers.get('timestamp', 0)
-                if now - timestamp > CACHE_MAX_AGE_SECONDS:
+                timestamp = headers.get('timestamp')
+                if timestamp is None or now - timestamp > CACHE_MAX_AGE_SECONDS:
                     to_delete.append(key)
-            except (struct.error, msgpack.ExtraData, KeyError, ValueError):
+            except (struct.error, msgpack.ExtraData, ValueError):
                 # Invalid entry, delete it
                 to_delete.append(key)
         for key in to_delete:
