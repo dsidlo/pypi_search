@@ -41,6 +41,7 @@ import lmdb
 import zlib
 import json
 import struct
+import base64
 from typing import Dict, Any, Optional, List
 
 
@@ -257,7 +258,7 @@ class CacheManager:
                 value = txn.get(b'all_packages')
                 if value:
                     cache_entry = json.loads(value.decode('utf-8'))
-                    compressed = cache_entry['data']
+                    compressed = base64.b64decode(cache_entry['data'])
                     ts = cache_entry['timestamp']
                     if time.time() - ts < CACHE_MAX_AGE_SECONDS:
                         packages_json = zlib.decompress(compressed).decode('utf-8')
@@ -280,7 +281,7 @@ class CacheManager:
         try:
             packages_json = json.dumps(packages).encode('utf-8')
             compressed = zlib.compress(packages_json)
-            cache_entry = {'data': compressed, 'timestamp': time.time()}
+            cache_entry = {'data': base64.b64encode(compressed).decode('utf-8'), 'timestamp': time.time()}
             value = json.dumps(cache_entry).encode('utf-8')
             env = self._get_env()
             with env.begin(write=True) as txn:
