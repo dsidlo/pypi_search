@@ -1,55 +1,59 @@
+import pytest
+from unittest.mock import patch, MagicMock
+from importlib.metadata import PackageNotFoundError
+from requests.exceptions import RequestException
+import time
 import json
 import logging
-import re
-import struct
-import sys
-import time
-from importlib.metadata import PackageNotFoundError
-from pathlib import Path
+import os
 from textwrap import dedent
-from unittest.mock import MagicMock, patch
-
-import lmdb
-import msgpack
-import pytest
-import requests
-import zlib
-from rich.console import Console
-from rich.table import Table
+import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.pypi_search_caching import (
-    CACHE_MAX_AGE_SECONDS,
-    convert_rst_code_blocks,
-    convert_rst_table,
-    ensure_cache_dir,
-    extract_raw_html_blocks,
-    fetch_all_package_names,
-    fetch_project_details,
+    main,
     get_packages,
-    init_lmdb_env,
+    fetch_project_details,
+    fetch_all_package_names,
     is_cache_valid,
     load_cached_packages,
-    main,
-    parse_simple_rst_list_table,
-    prune_lmdb_cache,
-    retrieve_package_data,
-    rich_table_to_markdown,
     save_packages_to_cache,
+    ensure_cache_dir,
+    CACHE_FILE,
+    CACHE_DIR,
+    CACHE_MAX_AGE_SECONDS,
+    convert_rst_table,
+    parse_simple_rst_list_table,
+    rich_table_to_markdown,
+    extract_raw_html_blocks,
+    convert_rst_code_blocks,
+    init_lmdb_env,
     store_package_data,
+    retrieve_package_data,
 )
+
+from rich.table import Table
+from rich.console import Console
+
 
 
 def strip_ansi(text):
-    return re.sub(r"\x1B\[[0-?]*[ -/]*[@-~]", "", text)
-
+    import re
+    return re.sub(r'\x1B\[[0-?]*[ -/]*[@-~]', '', text)
 
 @pytest.fixture
 def capsys_disabled(capfd):
     """Disable capfd for tests that don't use it."""
 
     pass
+
+@pytest.fixture(autouse=True)
+def mock_home(tmp_path, monkeypatch):
+    def mock_home(cls):
+        return tmp_path
+    monkeypatch.setattr('pathlib.Path.home', classmethod(mock_home))
 
 class TestCacheUtils:
     def test_ensure_cache_dir(self, tmp_path, monkeypatch):
@@ -99,17 +103,12 @@ class TestCacheUtils:
 class TestFetch100PackageNames:
     def test_success(self):
         html = '<html><a href="testpkg/">testpkg</a><a href="testpkg2/">testpkg2</a></html>'
-        with patch(
-            "requests.get",
-            return_value=MagicMock(
-                text=html, status_code=200, raise_for_status=lambda: None
-            ),
-        ):
+        with patch('requests.get', return_value=MagicMock(text=html, status_code=200, raise_for_status=lambda: None)):
             pkgs = fetch_all_package_names(limit=2)
         assert pkgs == ["testpkg", "testpkg2"]
 
     def test_network_error(self, capfd):
-        with patch("requests.get", side_effect=RequestException("network")):
+        with patch('requests.get', side_effect=RequestException("network")):
             with pytest.raises(SystemExit, match="1"):
                 fetch_all_package_names()
         captured = capfd.readouterr()
@@ -308,101 +307,83 @@ class TestFetchProjectDetails:
 
 class TestGetPackages:
     def test_cache_valid(self):
-        with patch(
-            "src.pypi_search_caching.is_cache_valid", return_value=True
-        ), patch(
-            "src.pypi_search_caching.load_cached_packages", return_value=["pkg1"]
-        ):
+        with patch('src.pypi_search_caching.pypi_search_caching.is_cache_valid', return_value=True), patch('src.pypi_search_caching.pypi_search_caching.load_cached_packages', return_value=["pkg1"]):
             pkgs = get_packages(refresh_cache=False)
         assert pkgs == ["pkg1"]
 
     def test_cache_invalid_refresh(self):
-        with patch(
-            "src.pypi_search_caching.is_cache_valid", return_value=False
-        ), patch(
-            "src.pypi_search_caching.fetch_all_package_names", return_value=["pkg1"]
-        ), patch("src.pypi_search_caching.save_packages_to_cache"):
+        with patch('src.pypi_search_caching.pypi_search_caching.is_cache_valid', return_value=False), patch('src.pypi_search_caching.pypi_search_caching.fetch_all_package_names', return_value=["pkg1"]), patch('src.pypi_search_caching.pypi_search_caching.save_packages_to_cache'):
             pkgs = get_packages(refresh_cache=True)
         assert pkgs == ["pkg1"]
 
 class TestMain:
-    @patch("src.pypi_search_caching.get_packages")
-    @patch("sys.exit")
+    @patch('src.pypi_search_caching.pypi_search_caching.get_packages')
+    @patch('sys.exit')
     def test_invalid_regex(self, mock_exit, mock_get_packages, monkeypatch):
-        monkeypatch.setattr(sys, "argv", ["script", r"["])  # invalid regex
+        monkeypatch.setattr(sys, 'argv', ['script', r'['])  # invalid regex
         main()
         mock_exit.assert_called_once_with(2)
 
-    @patch("src.pypi_search_caching.get_packages", return_value=[])
+    @patch('src.pypi_search_caching.get_packages', return_value=[])
     def test_no_matches(self, mock_get, capsys):
-        sys.argv = ["script", "nonexistent"]
+        sys.argv = ['script', 'nonexistent']
         main()
         captured = capsys.readouterr()
         assert "No matching packages found." in strip_ansi(captured.out)
 
-    @patch("src.pypi_search_caching.get_packages", return_value=["pkg1", "pkg1"])
+    @patch('src.pypi_search_caching.pypi_search_caching.get_packages', return_value=["pkg1", "pkg1"])
     def test_count_only(self, mock_get, capsys):
-        sys.argv = ["script", "pkg1", "--count-only"]
+        sys.argv = ['script', 'pkg1', '--count-only']
         main()
         captured = capsys.readouterr()
         assert "Found 2 matching packages." in strip_ansi(captured.out)
 
-    @patch("src.pypi_search_caching.get_packages", return_value=["pkg1", "pkg1"])
-    @patch(
-        "src.pypi_search_caching.fetch_project_details",
-        return_value="## testpkg\n**Version:** `1.0`",
-    )
+    @patch('src.pypi_search_caching.pypi_search_caching.get_packages', return_value=["pkg1", "pkg1"])
+    @patch('src.pypi_search_caching.pypi_search_caching.fetch_project_details', return_value="## testpkg\n**Version:** `1.0`")
     def test_list_with_desc(self, mock_details, mock_get, capsys):
-        sys.argv = ["script", "pkg1", "--desc"]
+        sys.argv = ['script', 'pkg1', '--desc']
         main()
         captured = capsys.readouterr()
         assert "pkg1" in captured.out
         assert "Version: 1.0" in strip_ansi(captured.out)
         assert "... and 0 more" not in captured.out  # <10
 
-    @patch("src.pypi_search_caching.get_packages", return_value=["pkg"] * 15)
-    @patch("src.pypi_search_caching.fetch_project_details", return_value="MD")
+    @patch('src.pypi_search_caching.pypi_search_caching.get_packages', return_value=["pkg"] * 15)
+    @patch('src.pypi_search_caching.pypi_search_caching.fetch_project_details', return_value="MD")
     def test_list_with_desc_full(self, mock_details, mock_get, capsys):
-        sys.argv = ["script", "pkg", "--desc", "--full-desc"]
+        sys.argv = ['script', 'pkg', '--desc', '--full-desc']
         main()
         captured = capsys.readouterr()
         assert "pkg" in captured.out  # all printed
         assert "MD" in captured.out  # top 10
         assert "... and 5 more matches" in strip_ansi(captured.out)
 
-    @pytest.mark.parametrize("arg", ["--version", "-V"])
+    @pytest.mark.parametrize('arg', ['--version', '-V'])
     def test_version_flag(self, monkeypatch, capsys, arg):
-        monkeypatch.setattr(sys, "argv", ["prog", arg])
-
+        monkeypatch.setattr(sys, 'argv', ['prog', arg])
         def mock_exit(code):
             raise SystemExit(code)
-
-        monkeypatch.setattr("sys.exit", mock_exit)
-        with patch("importlib.metadata.version") as mock_version:
-            mock_version.return_value = "0.0.4b0"
+        monkeypatch.setattr('sys.exit', mock_exit)
+        with patch('importlib.metadata.version') as mock_version:
+            mock_version.return_value = '0.0.4b0'
             with pytest.raises(SystemExit) as exc:
                 main()
             assert exc.value.code == 0
             captured = capsys.readouterr()
-            assert captured.out.strip() == "pypi-search-caching 0.0.4b0"
+            assert captured.out.strip() == 'pypi-search-caching 0.0.4b0'
 
     def test_version_file_missing(self, monkeypatch, capsys):
-        monkeypatch.setattr(sys, "argv", ["prog", "--version"])  # optional, since error early
-
+        monkeypatch.setattr(sys, 'argv', ['prog', '--version'])  # optional, since error early
         def mock_exit(code):
             raise SystemExit(code)
-
-        monkeypatch.setattr("sys.exit", mock_exit)
-        with patch("importlib.metadata.version", side_effect=PackageNotFoundError):
-            with patch("pathlib.Path.exists", return_value=False):
+        monkeypatch.setattr('sys.exit', mock_exit)
+        with patch('importlib.metadata.version', side_effect=PackageNotFoundError):
+            with patch('pathlib.Path.exists', return_value=False):
                 with pytest.raises(SystemExit) as exc:
                     main()
                 assert exc.value.code == 1
                 captured = capsys.readouterr()
-                assert (
-                    "pyproject.toml not found and package not installed."
-                    in captured.err
-                )
+                assert 'pyproject.toml not found and package not installed.' in captured.err
 
 
 class TestRSTTableUtils:

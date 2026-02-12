@@ -204,3 +204,27 @@ The task involved adding tests for low-coverage functions (`extract_raw_html_blo
 - **General**: Task succeeded via persistence; subagents (e.g., code-validator) unused as fixes were test-focused. Future: Git diffs for duplicates; aim for 100% with param tests (pytest.mark.parametrize for variations).
 
 Task fully resolved—tests pass at 95% coverage.
+
+## --no-pager --no-color
+
+Create a step by step plan for implementing the following feature...
+  - --no-pager|-n Which will by-pass the internal pager and use your own via shell pipes.
+  - --no-color|-c which will remove the terminal escape sequences that output colors to the terminal.
+
+## LMDB Caching
+
+Create a step by step plan with tasks for the implementation of LMDB caching for the pypi-search utility, ensuring efficient storage and retrieval of search results. The plan should include the following tasks:
+
+- I would like to cache module meta data from the pypi /json/ endpoint.
+- I would like the bulk of the json data to compressed when it is stored.
+- If the json full description gets rendered to markdown, I would like to cache the rendered markdown as well using a compressed format.
+- Before the json data is compressed, I would like to find extract and store the following fields of a given module for later lookup to enhance the process if efficient module meta-data updates.
+  - Etag
+  - Last Modified
+  - Last Timestamp
+
+1. **Research and Evaluation**: Investigate the suitability of LMDB for caching search results, considering factors such as performance, data integrity, and compatibility with the existing codebase.
+2. **Design and Architecture**: Define the data structure and schema for storing search results in LMDB, ensuring efficient indexing and retrieval.
+3. **Integration with Existing Code**: Modify the pypi-search utility to integrate with LMDB, handling cache initialization, data insertion, and retrieval.
+4. **Testing and Validation**: Implement unit tests and integration tests to validate the correctness and performance of the LMDB caching mechanism.
+5. **Documentation and Maintenance**: Update the documentation to reflect the new caching feature and provide guidance for future maintenance and updates.
