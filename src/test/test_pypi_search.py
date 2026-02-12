@@ -999,12 +999,21 @@ class TestLMDBCache:
         new_time = mock_time
 
         # Store old entry
-        old_headers = {'timestamp': old_time}
+        old_headers = {'etag': '"test"', 'last_modified': 'test-time', 'timestamp': old_time}
         store_package_data(lmdb_env, 'oldpkg', old_headers, json.dumps({}), None)
 
         # Store new entry
-        new_headers = {'timestamp': new_time}
+        new_headers = {'etag': '"test"', 'last_modified': 'test-time', 'timestamp': new_time}
         store_package_data(lmdb_env, 'newpkg', new_headers, json.dumps({}), None)
+
+        # Verify storage
+        retrieved_old = retrieve_package_data(lmdb_env, 'oldpkg')
+        assert retrieved_old is not None
+        assert retrieved_old['headers']['timestamp'] == old_time
+
+        retrieved_new = retrieve_package_data(lmdb_env, 'newpkg')
+        assert retrieved_new is not None
+        assert retrieved_new['headers']['timestamp'] == new_time
 
         # Prune
         monkeypatch.setattr('time.time', lambda: new_time)
@@ -1014,6 +1023,7 @@ class TestLMDBCache:
         # Verify old gone, new remains
         assert retrieve_package_data(lmdb_env, "oldpkg") is None
         assert retrieve_package_data(lmdb_env, "newpkg") is not None
+        assert retrieve_package_data(lmdb_env, "newpkg")['headers']['timestamp'] == new_time
 
     def test_prune_invalid_entries(self, lmdb_env, mock_time, monkeypatch):
         from src.pypi_search_caching.pypi_search_caching import prune_lmdb_cache
