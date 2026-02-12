@@ -309,22 +309,26 @@ def extract_headers(resp: requests.Response) -> Dict[str, Any]:
 
 def store_package_data(env: lmdb.Environment, package_name: str, headers: Dict[str, Any], json_data: str, md_data: Optional[str] = None):
     """Store package JSON data and optional Markdown in LMDB with headers, using compression and length-prefixing."""
-    with env.begin(write=True) as txn:
-        key = package_name.encode('utf-8')
-        headers_bytes = msgpack.packb(headers)
-        json_compressed = zlib.compress(json_data.encode('utf-8'))
-        if md_data:
-            md_compressed = zlib.compress(md_data.encode('utf-8'))
-        else:
-            md_compressed = b''
+    try:
+        with env.begin(write=True) as txn:
+            key = package_name.encode('utf-8')
+            headers_bytes = msgpack.packb(headers)
+            json_compressed = zlib.compress(json_data.encode('utf-8'))
+            if md_data:
+                md_compressed = zlib.compress(md_data.encode('utf-8'))
+            else:
+                md_compressed = b''
 
-        value = (
-            struct.pack('>I', len(headers_bytes)) + headers_bytes +
-            struct.pack('>I', len(json_compressed)) + json_compressed +
-            struct.pack('>I', len(md_compressed)) + md_compressed
-        )
-        txn.put(key, value)
-    logging.info(f"Stored {package_name} in LMDB cache")
+            value = (
+                struct.pack('>I', len(headers_bytes)) + headers_bytes +
+                struct.pack('>I', len(json_compressed)) + json_compressed +
+                struct.pack('>I', len(md_compressed)) + md_compressed
+            )
+            txn.put(key, value)
+        logging.info(f"Stored {package_name} in LMDB cache")
+    except Exception:
+        logging.warning(f"Failed to store {package_name} in LMDB cache")
+        raise
 
 
 def retrieve_package_data(env: lmdb.Environment, package_name: str) -> Optional[Dict[str, Any]]:

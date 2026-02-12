@@ -915,17 +915,20 @@ class TestLMDBCache:
         json_data = json.dumps({"info": {"version": "1.0"}})
         md_data = "# Test Markdown\nContent"
 
-        # Mock exception in the with block by patching begin to raise inside
+        # Mock exception in __exit__ after successful put
+        class MockTxn:
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                raise Exception("LMDB write error")
+            def put(self, key, value):
+                pass  # No-op, simulates successful put before commit failure
+
         def mock_begin_side_effect(*args, **kwargs):
-            class MockTxn:
-                def __enter__(self):
-                    raise Exception("Write error")
-                def __exit__(self, *exc):
-                    pass
             return MockTxn()
 
         with patch.object(env, 'begin', side_effect=mock_begin_side_effect):
-            with pytest.raises(Exception, match="Write error"):
+            with pytest.raises(Exception, match="LMDB write error"):
                 store_package_data(env, package_name, headers, json_data, md_data)
 
         env.close()
@@ -986,18 +989,21 @@ class TestLMDBCache:
         json_data = json.dumps({"info": {"version": "1.0"}})
         md_data = "# Test Markdown"
 
-        # Mock exception in the with block by patching begin to raise inside, triggering warning
+        # Mock exception in __exit__ after successful put
+        class MockTxn:
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                raise Exception("LMDB write error")
+            def put(self, key, value):
+                pass  # No-op, simulates successful put before commit failure
+
         def mock_begin_side_effect(*args, **kwargs):
-            class MockTxn:
-                def __enter__(self):
-                    raise Exception("Write error")
-                def __exit__(self, exc_type, exc_val, exc_tb):
-                    return False  # Do not suppress exception
             return MockTxn()
 
         with patch.object(env, 'begin', side_effect=mock_begin_side_effect):
             with caplog.at_level(logging.WARNING):
-                with pytest.raises(Exception):
+                with pytest.raises(Exception, match="LMDB write error"):
                     store_package_data(env, package_name, headers, json_data, md_data)
                 assert "Failed to store testpkg in LMDB cache" in caplog.text
 
