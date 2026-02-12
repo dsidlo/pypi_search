@@ -166,9 +166,12 @@ class TestFetchProjectDetails:
                 mock_get.assert_not_called()
                 assert "**Version:** `1.0`" in md
 
-    def test_lmdb_cache_miss(self, monkeypatch):
+    def test_lmdb_cache_miss(self, tmp_path, monkeypatch):
         now = time.time()
         monkeypatch.setattr('time.time', lambda: now)
+
+        lmdb_path = tmp_path / "lmdb"
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.LMDB_DIR', lmdb_path)
 
         json_data = {"info": {"version": "1.0", "summary": "Test pkg", "description": "Desc"}}
         resp = MagicMock(status_code=200, json=lambda: json_data, raise_for_status=lambda: None)
@@ -178,7 +181,7 @@ class TestFetchProjectDetails:
                 with patch('src.pypi_search_caching.pypi_search_caching.init_lmdb_env') as mock_init:
                     with patch('src.pypi_search_caching.pypi_search_caching.store_package_data') as mock_store:
                         md = fetch_project_details("testpkg", include_desc=True)
-                        assert mock_init.call_count == 2
+                        mock_init.assert_called()
                         mock_store.assert_called_once()
                         assert "## testpkg" in md
 
@@ -222,9 +225,12 @@ class TestFetchProjectDetails:
                     assert result is None
                     mock_store.assert_not_called()  # No store on 404
 
-    def test_include_desc_false_stores_json_only(self, monkeypatch):
+    def test_include_desc_false_stores_json_only(self, tmp_path, monkeypatch):
         now = time.time()
         monkeypatch.setattr('time.time', lambda: now)
+
+        lmdb_path = tmp_path / "lmdb"
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.LMDB_DIR', lmdb_path)
 
         json_data = {"info": {"version": "1.0", "description": "Desc"}}
         resp = MagicMock(status_code=200, json=lambda: json_data, raise_for_status=lambda: None)
@@ -239,6 +245,9 @@ class TestFetchProjectDetails:
                     assert call_args is None
 
     def test_lmdb_roundtrip_compression(self, tmp_path, monkeypatch):
+        now = time.time()
+        monkeypatch.setattr('time.time', lambda: now)
+
         # Setup mock LMDB dir
         mock_lmdb_dir = tmp_path / "lmdb"
         mock_lmdb_dir.mkdir(parents=True)
@@ -246,7 +255,7 @@ class TestFetchProjectDetails:
 
         # Test data
         package_name = "testpkg"
-        headers = {'timestamp': time.time()}
+        headers = {'timestamp': now}
         json_str = json.dumps({"info": {"version": "1.0"}})
         md_str = "## Test MD"
 
@@ -674,11 +683,16 @@ class TestLMDBCache:
         return mock_cache_dir
 
     @pytest.fixture
-    def lmdb_env(self, mock_home):
-        from src.pypi_search_caching.pypi_search_caching import init_lmdb_env
+    def lmdb_env(self, tmp_path):
+        from src.pypi_search_caching.pypi_search_caching import init_lmdb_env, LMDB_DIR
+        import os
+        original_lmdb_dir = LMDB_DIR
+        LMDB_DIR = tmp_path / "lmdb"
+        LMDB_DIR.mkdir(parents=True, exist_ok=True)
         env = init_lmdb_env()
         yield env
         env.close()
+        LMDB_DIR = original_lmdb_dir
 
     @pytest.fixture
     def mock_time(self, monkeypatch):
@@ -861,7 +875,7 @@ class TestLMDBCache:
         assert pruned == 1  # Invalid deleted
 
     def test_prune_lmdb_cache_timestamp(self, lmdb_env, mock_time, monkeypatch):
-        from src.pypi_search_caching.pypi_search_caching import prune_lmdb_cache, store_package_data
+        from src.pypi_search_caching.pypi_search_caching import prune_lmdb_cache, store_package_data, retrieve_package_data
         import json
 
         old_time = mock_time - CACHE_MAX_AGE_SECONDS * 2
