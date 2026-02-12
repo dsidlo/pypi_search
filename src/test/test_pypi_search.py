@@ -25,6 +25,7 @@ from src.pypi_search_caching import (
     CacheManager,
     CACHE_DIR,
     CACHE_MAX_AGE_SECONDS,
+    LMDB_CACHE_MAX_AGE_SECONDS,
     convert_rst_table,
     parse_simple_rst_list_table,
     rich_table_to_markdown,
@@ -238,7 +239,7 @@ class TestFetchProjectDetails:
         now = time.time()
         monkeypatch.setattr('time.time', lambda: now)
 
-        stale_timestamp = now - CACHE_MAX_AGE_SECONDS * 2
+        stale_timestamp = now - LMDB_CACHE_MAX_AGE_SECONDS * 2
         cached_data = {'headers': {'timestamp': stale_timestamp}, 'json': '{}', 'md': None}
         json_data = {"info": {"version": "1.0"}}
         resp = MagicMock(status_code=200, json=lambda: json_data, raise_for_status=lambda: None)
