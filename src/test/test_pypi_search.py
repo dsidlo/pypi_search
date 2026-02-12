@@ -25,7 +25,6 @@ from src.pypi_search_caching import (
     CacheManager,
     CACHE_DIR,
     CACHE_MAX_AGE_SECONDS,
-    LMDB_CACHE_MAX_AGE_SECONDS,
     convert_rst_table,
     parse_simple_rst_list_table,
     rich_table_to_markdown,
