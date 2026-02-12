@@ -100,6 +100,55 @@ class TestCacheUtils:
         save_packages_to_cache(["pkg2", "pkg1", "pkg3"])
         assert test_cache_file.read_text() == "pkg1\npkg2\npkg3\n"
 
+    def test_cache_manager_load_exception_fallback(self, tmp_path, monkeypatch):
+        from src.pypi_search_caching.pypi_search_caching import CacheManager, load_cached_packages, save_packages_to_cache, CACHE_FILE
+
+        # Setup legacy cache
+        legacy_packages = ["pkg1", "pkg2"]
+        test_cache_file = tmp_path / "test.cache"
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.CACHE_FILE', test_cache_file)
+        test_cache_file.write_text("pkg1\npkg2\n")
+
+        # Mock LMDB load to raise exception
+        def mock_init_lmdb_env():
+            env = MagicMock()
+            env.begin.return_value.__enter__.return_value.get.return_value = None
+            return env
+
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.init_lmdb_env', mock_init_lmdb_env)
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.json', MagicMock(loads=lambda x: {'data': b'', 'timestamp': time.time() - 100}))
+
+        # Mock legacy load
+        with patch('src.pypi_search_caching.pypi_search_caching.load_cached_packages') as mock_legacy_load:
+            mock_legacy_load.return_value = legacy_packages
+            cm = CacheManager()
+            packages = cm.load()
+            assert packages == legacy_packages
+            mock_legacy_load.assert_called_once()
+
+        # Verify migration: save called
+        cm.save(legacy_packages)
+
+    def test_cache_manager_save_deletes_legacy(self, tmp_path, monkeypatch):
+        from src.pypi_search_caching.pypi_search_caching import CacheManager, CACHE_FILE
+
+        test_cache_file = tmp_path / "test.cache"
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.CACHE_FILE', test_cache_file)
+        test_cache_file.touch()  # Create legacy file
+
+        # Mock LMDB save to succeed
+        def mock_init_lmdb_env():
+            env = MagicMock()
+            return env
+
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.init_lmdb_env', mock_init_lmdb_env)
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.json', MagicMock(dumps=lambda x: b'{}'))
+
+        cm = CacheManager()
+        cm.save(["pkg1"])
+
+        assert not test_cache_file.exists()  # Legacy deleted
+
 class TestFetch100PackageNames:
     def test_success(self):
         html = '<html><a href="testpkg/">testpkg</a><a href="testpkg2/">testpkg2</a></html>'
@@ -274,6 +323,29 @@ class TestFetchProjectDetails:
         assert json.loads(retrieved['json']) == json.loads(json_str)
         assert retrieved['md'] == md_str
 
+    def test_fetch_project_details_cached_classifiers_summary(self, monkeypatch):
+        now = time.time()
+        monkeypatch.setattr('time.time', lambda: now)
+
+        cached_data = {
+            'headers': {'timestamp': now - 100},
+            'json': json.dumps({
+                "info": {
+                    "version": "1.0",
+                    "summary": "Test summary",
+                    "classifiers": ["License :: OSI Approved :: MIT", "Programming Language :: Python :: 3"]
+                }
+            }),
+            'md': None
+        }
+        with patch('src.pypi_search_caching.pypi_search_caching.retrieve_package_data', return_value=cached_data):
+            with patch('requests.get') as mock_get:
+                md = fetch_project_details("testpkg", include_desc=False)
+                mock_get.assert_not_called()
+                assert "**Version:** `1.0`" in md
+                assert "**Summary:** Test summary" in md
+                assert "**Classifiers:**\n- License :: OSI Approved :: MIT\n- Programming Language :: Python :: 3" in md
+
     def test_logging_in_fetch_project_details_cache_miss(self, caplog, monkeypatch):
         from src.pypi_search_caching.pypi_search_caching import fetch_project_details
         monkeypatch.setattr('time.time', lambda: 1234567890.0)
@@ -384,6 +456,31 @@ class TestMain:
                 assert exc.value.code == 1
                 captured = capsys.readouterr()
                 assert 'pyproject.toml not found and package not installed.' in captured.err
+
+    def test_main_early_return_refresh_empty_pattern(self, monkeypatch):
+        monkeypatch.setattr(sys, 'argv', ['script', '--refresh-cache', ''])
+        with patch('src.pypi_search_caching.pypi_search_caching.get_packages') as mock_get:
+            main()
+            mock_get.assert_called_once_with(True)  # refresh=True
+            # No further execution (no regex, no output)
+
+    @patch('src.pypi_search_caching.pypi_search_caching.get_packages', return_value=["pkg1", "pkg2"])
+    def test_main_printing_without_desc(self, mock_get, capsys):
+        sys.argv = ['script', 'pkg']
+        main()
+        captured = capsys.readouterr()
+        assert "1. pkg1" in captured.out
+        assert "2. pkg2" in captured.out
+        assert "Total: 2" in captured.out
+        assert "Version:" not in captured.out  # No details
+
+    def test_main_no_args_check(self, monkeypatch, capfd):
+        monkeypatch.setattr(sys, 'argv', [])
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 1
+        captured = capfd.readouterr()
+        assert "Please provide a regex pattern." in captured.err
 
 
 class TestRSTTableUtils:
