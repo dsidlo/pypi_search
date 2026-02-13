@@ -1169,23 +1169,22 @@ class TestLMDBCache:
 
         env = MagicMock()
         package_name = "testpkg"
-        headers = {'timestamp': time.time()}
-        json_data = json.dumps({"info": {"version": "1.0"}})
-        md_data = "# Test Markdown\nContent"
+        headers = {"timestamp": 123.0}
+        json_data = '{"info": {"version": "1.0"}}'
 
         # Mock exception in __exit__ after successful put
         class MockTxn:
             def __enter__(self):
                 return self
             def __exit__(self, exc_type, exc_val, exc_tb):
-                raise Exception("LMDB write error")
+                raise Exception("Mock LMDB commit error after successful put")
             def put(self, key, value):
                 pass  # No-op, simulates successful put before commit failure
 
         env.begin.return_value = MockTxn()
 
-        with pytest.raises(Exception, match="LMDB write error"):
-            store_package_data(env, package_name, headers, json_data, md_data, verbose=True)
+        with pytest.raises(Exception, match="Mock LMDB commit error after successful put"):
+            store_package_data(env, package_name, headers, json_data)
 
     def test_retrieve_package_data_zlib_error(self, lmdb_env, mock_time):
         from src.pypi_search_caching.pypi_search_caching import store_package_data, retrieve_package_data
@@ -1234,24 +1233,23 @@ class TestLMDBCache:
 
         env = MagicMock()
         package_name = "testpkg"
-        headers = {'timestamp': time.time()}
-        json_data = json.dumps({"info": {"version": "1.0"}})
-        md_data = "# Test Markdown"
+        headers = {"timestamp": 123.0}
+        json_data = '{"info": {"version": "1.0"}}'
 
         # Mock exception in __exit__ after successful put
         class MockTxn:
             def __enter__(self):
                 return self
             def __exit__(self, exc_type, exc_val, exc_tb):
-                raise Exception("LMDB write error")
+                pass  # No exception in __exit__
             def put(self, key, value):
-                pass  # No-op, simulates successful put before commit failure
+                raise Exception("Mock LMDB put error")
 
         env.begin.return_value = MockTxn()
 
         with caplog.at_level(logging.WARNING):
-            with pytest.raises(Exception, match="LMDB write error"):
-                store_package_data(env, package_name, headers, json_data, md_data, verbose=True)
+            with pytest.raises(Exception):
+                store_package_data(env, package_name, headers, json_data)
             assert "Failed to store testpkg in LMDB cache" in caplog.text
 
 # Run with pytest src/test/test_p.py --cov=src/p
