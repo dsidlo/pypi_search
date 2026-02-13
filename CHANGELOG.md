@@ -15,7 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Updated pyproject.toml: Added tqdm dep, pytest addopts="-m 'not refresh_cache'", markers.
-- Bumped version to 0.0.5a2.
 
 ## [0.0.5a1] - 2023-10-01
 ### Added
