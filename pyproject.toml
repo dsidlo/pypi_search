@@ -20,6 +20,7 @@ dependencies = [
     "pypi>=2.1",
     "requests>=2.32.5",
     "rich>=14.3.2",
+    "tqdm>=4.66.0",
 ]
 [project.scripts]
 pypi_search = "pypi_search_caching:main"
@@ -45,3 +46,6 @@ dev = [
     "pytest-cov>=7.0.0",
     "flake8",
 ]
+
+[tool.pytest.ini_options]
+addopts = '-m "not refresh_cache"'

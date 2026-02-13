@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, ANY
 from importlib.metadata import PackageNotFoundError
 from requests.exceptions import RequestException
 import time
@@ -163,6 +163,7 @@ class TestFetch100PackageNames:
         captured = capfd.readouterr()
         assert "Error downloading PyPI index" in captured.err
 
+    @pytest.mark.refresh_cache
     def test_limited_fetch(self):
         pkg_cnt=700000
         pkgs = fetch_all_package_names(limit=pkg_cnt)
@@ -251,7 +252,7 @@ class TestFetchProjectDetails:
         with patch('src.pypi_search_caching.pypi_search_caching.retrieve_package_data', return_value=cached_data):
             with patch('requests.get', return_value=resp):
                 with patch('src.pypi_search_caching.pypi_search_caching.store_package_data') as mock_store:
-                    md = fetch_project_details("testpkg", include_desc=False)
+                    md = fetch_project_details("testpkg", include_desc=False, verbose=True, test_mode=True)
                     mock_store.assert_called_once()  # Treats as miss and stores
 
     def test_lmdb_exception_fallback(self, monkeypatch):
@@ -398,6 +399,7 @@ class TestGetPackages:
             pkgs = get_packages(refresh_cache=False)
         assert pkgs == ["pkg1"]
 
+    @pytest.mark.refresh_cache
     def test_cache_invalid_refresh(self):
         with patch('src.pypi_search_caching.pypi_search_caching.is_cache_valid', return_value=False), patch('src.pypi_search_caching.pypi_search_caching.fetch_all_package_names', return_value=["pkg1"]), patch('src.pypi_search_caching.pypi_search_caching.save_packages_to_cache'):
             pkgs = get_packages(refresh_cache=True)
@@ -424,6 +426,115 @@ class TestMain:
         main()
         captured = capsys.readouterr()
         assert "Found 2 matching packages." in strip_ansi(captured.out)
+
+class TestTestModeAndProgress:
+    @patch('argparse.ArgumentParser')
+    def test_test_mode_flag_parsed(self, mock_parser, monkeypatch):
+        from src.pypi_search_caching.pypi_search_caching import main
+        mock_argparser = MagicMock()
+        mock_parser.return_value = mock_argparser
+        mock_args = MagicMock()
+        mock_args.pattern = 'pattern'
+        mock_args.search = None
+        mock_args.ignore_case = False
+        mock_args.desc = False
+        mock_args.count_only = False
+        mock_args.refresh_cache = False
+        mock_args.full_desc = False
+        mock_args.no_color = False
+        mock_args.max_desc = 10
+        mock_args.verbose = False
+        mock_args.test_mode = True
+        mock_argparser.parse_args.return_value = mock_args
+        monkeypatch.setattr(sys, 'argv', ['script', 'pattern', '--test_mode'])
+        main()
+        mock_argparser.add_argument.assert_called_with('--test_mode', action='store_true', help='Use logger.info for progress instead of tqdm')
+
+    @patch('src.pypi_search_caching.pypi_search_caching.tqdm')
+    def test_tqdm_used_in_filter_loop(self, mock_tqdm, monkeypatch):
+        mock_packages = ["pkg1", "pkg2", "pkg3"]
+        def mock_get_packages(refresh):
+            return mock_packages
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_packages', mock_get_packages)
+        def mock_get_desc(pkg, verbose=False, test_mode=False):
+            return ""
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_package_long_description', mock_get_desc)
+        import sys
+        sys.argv = ['script', 'pkg.*', '--search', 'dummy', '--count-only']
+        main()
+        mock_tqdm.assert_called_once_with(mock_packages, desc='Filtering descriptions', disable=not sys.stdout.isatty())
+
+    def test_logger_info_in_filter_loop_test_mode(self, caplog, monkeypatch):
+        mock_packages = ["pkg1", "pkg2", "pkg3"]
+        def mock_get_packages(refresh):
+            return mock_packages
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_packages', mock_get_packages)
+        def mock_get_desc(pkg, verbose=False, test_mode=False):
+            return ""
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_package_long_description', mock_get_desc)
+        import sys
+        sys.argv = ['script', 'pkg.*', '--search', 'dummy', '--count-only', '--test_mode']
+        with caplog.at_level(logging.INFO):
+            main()
+        assert any("Filtering description 1/3: pkg1" in record.message for record in caplog.records)
+        assert any("Filtering description 2/3: pkg2" in record.message for record in caplog.records)
+        assert any("Filtering description 3/3: pkg3" in record.message for record in caplog.records)
+
+    @patch('src.pypi_search_caching.pypi_search_caching.tqdm')
+    @patch('src.pypi_search_caching.pypi_search_caching.fetch_project_details')
+    def test_tqdm_used_in_details_loop(self, mock_details, mock_tqdm, monkeypatch):
+        mock_packages = ["pkg1", "pkg2"]
+        def mock_get_packages(refresh):
+            return mock_packages
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_packages', mock_get_packages)
+        mock_details.return_value = "details"
+        import sys
+        sys.argv = ['script', 'pkg.*', '--desc', '--max_desc', '2']
+        main()
+        mock_tqdm.assert_called_once_with(ANY, total=len(mock_packages), desc='Processing matches', disable=not sys.stdout.isatty())
+
+    def test_logger_info_in_details_loop_test_mode(self, caplog, monkeypatch):
+        mock_packages = ["pkg1", "pkg2"]
+        def mock_get_packages(refresh):
+            return mock_packages
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_packages', mock_get_packages)
+        def mock_fetch(pkg, console=None, include_desc=False, verbose=False, test_mode=False):
+            return "details"
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.fetch_project_details', mock_fetch)
+        import sys
+        sys.argv = ['script', 'pkg.*', '--desc', '--max_desc', '2', '--test_mode']
+        with caplog.at_level(logging.INFO):
+            main()
+        assert any("Fetching details 1/2: pkg1" in record.message for record in caplog.records)
+        assert any("Fetching details 2/2: pkg2" in record.message for record in caplog.records)
+
+    @patch('src.pypi_search_caching.pypi_search_caching.tqdm')
+    def test_no_tqdm_in_test_mode_filter(self, mock_tqdm, monkeypatch):
+        mock_packages = ["pkg1", "pkg2", "pkg3"]
+        def mock_get_packages(refresh):
+            return mock_packages
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_packages', mock_get_packages)
+        def mock_get_desc(pkg, verbose=False, test_mode=False):
+            return ""
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_package_long_description', mock_get_desc)
+        import sys
+        sys.argv = ['script', 'pkg.*', '--search', 'dummy', '--count-only', '--test_mode']
+        main()
+        mock_tqdm.assert_not_called()
+
+    @patch('src.pypi_search_caching.pypi_search_caching.tqdm')
+    @patch('src.pypi_search_caching.pypi_search_caching.fetch_project_details')
+    def test_no_tqdm_in_test_mode_details(self, mock_details, mock_tqdm, monkeypatch):
+        mock_packages = ["pkg1", "pkg2"]
+        def mock_get_packages(refresh):
+            return mock_packages
+        monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_packages', mock_get_packages)
+        mock_details.return_value = "details"
+        import sys
+        sys.argv = ['script', 'pkg.*', '--desc', '--max_desc', '2', '--test_mode']
+        main()
+        mock_tqdm.assert_not_called()
+
 
     @patch('src.pypi_search_caching.pypi_search_caching.get_packages', return_value=["pkg1", "pkg1"])
     @patch('src.pypi_search_caching.pypi_search_caching.fetch_project_details', return_value="## testpkg\n**Version:** `1.0`")
@@ -472,6 +583,7 @@ class TestMain:
                 captured = capsys.readouterr()
                 assert 'pyproject.toml not found and package not installed.' in captured.err
 
+    @pytest.mark.refresh_cache
     def test_main_early_return_refresh_empty_pattern(self, monkeypatch):
         monkeypatch.setattr(sys, 'argv', ['script', '--refresh-cache', ''])
         with patch('src.pypi_search_caching.pypi_search_caching.get_packages') as mock_get:
@@ -1114,7 +1226,7 @@ class TestLMDBCache:
                 with patch('requests.get', return_value=resp):
                     md = fetch_project_details("testpkg", include_desc=False)
                     assert "**Version:** `1.0`" in md  # Fallback to direct fetch succeeds
-                    assert "LMDB error for testpkg, falling back to direct fetch" in caplog.text
+                    assert 'Failed to store testpkg in LMDB cache' in caplog.text
 
     def test_store_package_data_lmdb_warning(self, caplog, monkeypatch):
         from src.pypi_search_caching.pypi_search_caching import store_package_data
@@ -1153,7 +1265,7 @@ class TestSearchFilter:
         monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_packages', lambda refresh: mock_packages)
 
         # Mock get_package_long_description
-        def mock_get_desc(pkg, verbose=False):
+        def mock_get_desc(pkg, verbose=False, test_mode=False):
             if pkg == "package-a":
                 return "Description with keyword"
             elif pkg == "package-b":
@@ -1194,7 +1306,7 @@ class TestSearchFilter:
         monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_packages', lambda refresh: mock_packages)
 
         # Mock but not called
-        def mock_get_desc(pkg, verbose=False):
+        def mock_get_desc(pkg, verbose=False, test_mode=False):
             return "desc"
         monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_package_long_description', mock_get_desc)
 

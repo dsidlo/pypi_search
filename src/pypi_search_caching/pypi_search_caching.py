@@ -80,6 +80,8 @@ class BrightBlueStyle(Style):
 
 import html2text
 
+from tqdm import tqdm
+
 
 def extract_raw_html_blocks(text):
     """Extract and convert raw:: html blocks to markdown."""
@@ -386,7 +388,8 @@ Any], json_data: str, md_data: Optional[str] = None, verbose=False):
         if verbose:
             logging.info(f"Stored {package_name} in LMDB cache")
     except Exception:
-        logging.warning(f"Failed to store {package_name} in LMDB cache")
+        if verbose or test_mode:
+            logging.warning(f"Failed to store {package_name} in LMDB cache")
         raise
 
 
@@ -432,18 +435,18 @@ def retrieve_package_data(env: lmdb.Environment, package_name: str) -> Optional[
         return {'headers': headers, 'json': json_data, 'md': md_data}
 
 
-def get_package_long_description(package_name: str, verbose: bool = False) -> str:
+def get_package_long_description(package_name: str, verbose: bool = False, test_mode: bool = False) -> str:
     env = None
     try:
         env = init_lmdb_env()
         cached = retrieve_package_data(env, package_name)
         if cached and (time.time() - cached['headers']['timestamp']) < LMDB_CACHE_MAX_AGE_SECONDS:
-            if verbose:
+            if verbose or test_mode:
                 logging.info(f"Cache hit for description of {package_name}")
             data = json.loads(cached['json'])
             return data.get('info', {}).get('description', '')
     except Exception as e:
-        if verbose:
+        if verbose or test_mode:
             logging.warning(f"Cache error for {package_name}: {e}")
     finally:
         if env:
@@ -467,18 +470,18 @@ def get_package_long_description(package_name: str, verbose: bool = False) -> st
             store_package_data(env, package_name, headers, json_data, verbose=True)
             env.close()
         except Exception as e:
-            if verbose:
+            if verbose or test_mode:
                 logging.warning(f"Failed to cache description for {package_name}: {e}")
 
-        if verbose:
+        if verbose or test_mode:
             logging.info(f"Fetched description for {package_name} from PyPI")
         return desc
     except requests.RequestException as e:
-        if verbose:
+        if verbose or test_mode:
             logging.error(f"Failed to fetch description for {package_name}: {e}")
         return ''
     except ValueError as e:
-        if verbose:
+        if verbose or test_mode:
             logging.error(f"Invalid JSON for {package_name}: {e}")
         return ''
 
@@ -525,14 +528,14 @@ def get_packages(refresh_cache):
     return packages
 
 
-def fetch_project_details(package_name, console=None, include_desc=False, verbose=False):
+def fetch_project_details(package_name, console=None, include_desc=False, verbose=False, test_mode: bool = False):
     env = None
     try:
         env = init_lmdb_env()
         prune_lmdb_cache(env, verbose=verbose)
         cached = retrieve_package_data(env, package_name)
         if cached and (time.time() - cached['headers']['timestamp']) < LMDB_CACHE_MAX_AGE_SECONDS:
-            if verbose:
+            if verbose or test_mode:
                 logging.info(f"Cache hit for {package_name}")
             data = json.loads(cached['json'])
             info = data.get('info', {})
@@ -562,10 +565,11 @@ def fetch_project_details(package_name, console=None, include_desc=False, verbos
                 if summary:
                     md_parts.append(f"**Summary:** {summary}")
         else:
-            if verbose:
+            if verbose or test_mode:
                 logging.info(f"Cache miss for {package_name}, fetching from PyPI")
     except Exception:
-        logging.warning(f"LMDB error for {package_name}, falling back to direct fetch")
+        if verbose or test_mode:
+            logging.warning(f"LMDB error for {package_name}, falling back to direct fetch")
         # Fallback: proceed without LMDB caching
         pass
     finally:
@@ -582,7 +586,7 @@ def fetch_project_details(package_name, console=None, include_desc=False, verbos
         resp.raise_for_status()
         data = resp.json()
     except (requests.RequestException, ValueError):
-        if verbose:
+        if verbose or test_mode:
             logging.error(f"Failed to fetch {package_name} from PyPI")
         return None
 
@@ -675,6 +679,7 @@ def main():
                         help="Enable Verbose output")
     parser.add_argument("--search", "-s", default=None,
                         help="Regex pattern to filter by long description")
+    parser.add_argument('--test_mode', action='store_true', help='Use logger.info for progress instead of tqdm')
     args = parser.parse_args()
 
     # Max number of descriptions fetched...
@@ -722,11 +727,18 @@ def main():
 
             print("Filtering by description...", file=sys.stderr)
             filtered_matches = []
-            for pkg in matches:
-                desc = get_package_long_description(pkg, verbose=args.verbose)
-                if search_regex.search(desc):
-                    # print(desc)
-                    filtered_matches.append(pkg)
+            if args.test_mode:
+                for i, pkg in enumerate(matches, 1):
+                    desc = get_package_long_description(pkg, verbose=args.verbose, test_mode=args.test_mode)
+                    if search_regex.search(desc):
+                        filtered_matches.append(pkg)
+                    if args.verbose or args.test_mode:
+                        logging.info(f"Filtering description {i}/{len(matches)}: {pkg}")
+            else:
+                for pkg in tqdm(matches, desc="Filtering descriptions", disable=not sys.stdout.isatty()):
+                    desc = get_package_long_description(pkg, verbose=args.verbose, test_mode=args.test_mode)
+                    if search_regex.search(desc):
+                        filtered_matches.append(pkg)
             matches = filtered_matches
             print(f"After description filter: {len(matches)} matches", file=sys.stderr)
 
@@ -740,47 +752,92 @@ def main():
 
         console.print(f"[bold cyan]Found {len(matches):,} matches![/bold cyan]\n")
 
-        for i, pkg in enumerate(matches, 1):
-            if len(pkg) > 50:
-                # Snip junk files...
-                pkg = pkg[:50] + "..."
-            if i > max_desc and args.desc:
-                console.print(f"[red] *** Max Descriptions Reached. *** [/red]")
-                break
-            if args.desc:
-                # String of i space padded to 4 digits
-                console.rule(f"[cyan]{i}.[/] [bold]{pkg}[/bold]")
-                details_md = fetch_project_details(pkg, console=console, include_desc=args.full_desc,
-                                                   verbose=args.verbose)
-                if details_md:
-                    # Filter out '.. image::' from details_md
-                    details_md = '\n'.join([line for line in details_md.split('\n')
-                                            if not (line.startswith('.. image::') or
-                                                    line.startswith('   :height: ') or
-                                                    line.startswith('   :width: ') or
-                                                    line.startswith('   :alt: ') or
-                                                    line.startswith(':raw-html-m2r:') or
-                                                    line.startswith('   :target: ') or
-                                                    line == '|')])
-                    details_md = re.sub(
-                        r'\\?\s*:raw-html-m2r:\s*(`[^`]+`)\\?\s*',
-                        r'\1',
-                        details_md,
-                        flags=re.MULTILINE
-                    )
-                    details_md = re.sub(r'`<br>`', r'\n\n', details_md, flags=re.MULTILINE)
-                    details_md = re.sub(r'#\.', r'*', details_md, flags=re.MULTILINE)
-                    details_md = re.sub(r'\\ ', r' ', details_md, flags=re.MULTILINE)
-                    details_md = re.sub(r'(^\.\.\s+([^:]+\:)\s+(https?://[^\s]+))', r' - \2 `\3`', details_md,
-                                        flags=re.MULTILINE)
-                    details_md = re.sub(r'<#', r'<\#', details_md, flags=re.MULTILINE)
-                    details_md = re.sub(r'>_', r'>', details_md, flags=re.MULTILINE)
-                    details_md = re.sub(r'>`_', r'>`', details_md, flags=re.MULTILINE)
-                    details_md = re.sub(r"` (?=\W)", r"`", details_md, flags=re.MULTILINE)
-                    md = Markdown(details_md, code_theme=BrightBlueStyle)
-                    console.print(md)
-            else:
-                console.print(f"[cyan]{i:>6}.[/] [bold]{pkg}[/bold]")
+        if args.test_mode:
+            for i, pkg in enumerate(matches, 1):
+                if len(pkg) > 50:
+                    # Snip junk files...
+                    pkg = pkg[:50] + "..."
+                if i > max_desc and args.desc:
+                    console.print(f"[red] *** Max Descriptions Reached. *** [/red]")
+                    break
+                if args.desc:
+                    if args.verbose or args.test_mode:
+                        logging.info(f"Fetching details {i}/{len(matches)}: {pkg}")
+                    # String of i space padded to 4 digits
+                    console.rule(f"[cyan]{i}.[/] [bold]{pkg}[/bold]")
+                    details_md = fetch_project_details(pkg, console=console, include_desc=args.full_desc,
+                                                       verbose=args.verbose, test_mode=args.test_mode)
+                    if details_md:
+                        # Filter out '.. image::' from details_md
+                        details_md = '\n'.join([line for line in details_md.split('\n')
+                                                if not (line.startswith('.. image::') or
+                                                        line.startswith('   :height: ') or
+                                                        line.startswith('   :width: ') or
+                                                        line.startswith('   :alt: ') or
+                                                        line.startswith(':raw-html-m2r:') or
+                                                        line.startswith('   :target: ') or
+                                                        line == '|')])
+                        details_md = re.sub(
+                            r'\\?\s*:raw-html-m2r:\s*(`[^`]+`)\\?\s*',
+                            r'\1',
+                            details_md,
+                            flags=re.MULTILINE
+                        )
+                        details_md = re.sub(r'`<br>`', r'\n\n', details_md, flags=re.MULTILINE)
+                        details_md = re.sub(r'#\.', r'*', details_md, flags=re.MULTILINE)
+                        details_md = re.sub(r'\\ ', r' ', details_md, flags=re.MULTILINE)
+                        details_md = re.sub(r'(^\.\.\s+([^:]+\:)\s+(https?://[^\s]+))', r' - \2 `\3`', details_md,
+                                            flags=re.MULTILINE)
+                        details_md = re.sub(r'<#', r'<\#', details_md, flags=re.MULTILINE)
+                        details_md = re.sub(r'>_', r'>', details_md, flags=re.MULTILINE)
+                        details_md = re.sub(r'>`_', r'>`', details_md, flags=re.MULTILINE)
+                        details_md = re.sub(r"` (?=\W)", r"`", details_md, flags=re.MULTILINE)
+                        md = Markdown(details_md, code_theme=BrightBlueStyle)
+                        console.print(md)
+                else:
+                    console.print(f"[cyan]{i:>6}.[/] [bold]{pkg}[/bold]")
+        else:
+            for i, pkg in tqdm(enumerate(matches, 1), total=len(matches), desc="Processing matches", disable=not sys.stdout.isatty()):
+                if len(pkg) > 50:
+                    # Snip junk files...
+                    pkg = pkg[:50] + "..."
+                if i > max_desc and args.desc:
+                    console.print(f"[red] *** Max Descriptions Reached. *** [/red]")
+                    break
+                if args.desc:
+                    # String of i space padded to 4 digits
+                    console.rule(f"[cyan]{i}.[/] [bold]{pkg}[/bold]")
+                    details_md = fetch_project_details(pkg, console=console, include_desc=args.full_desc,
+                                                       verbose=args.verbose, test_mode=args.test_mode)
+                    if details_md:
+                        # Filter out '.. image::' from details_md
+                        details_md = '\n'.join([line for line in details_md.split('\n')
+                                                if not (line.startswith('.. image::') or
+                                                        line.startswith('   :height: ') or
+                                                        line.startswith('   :width: ') or
+                                                        line.startswith('   :alt: ') or
+                                                        line.startswith(':raw-html-m2r:') or
+                                                        line.startswith('   :target: ') or
+                                                        line == '|')])
+                        details_md = re.sub(
+                            r'\\?\s*:raw-html-m2r:\s*(`[^`]+`)\\?\s*',
+                            r'\1',
+                            details_md,
+                            flags=re.MULTILINE
+                        )
+                        details_md = re.sub(r'`<br>`', r'\n\n', details_md, flags=re.MULTILINE)
+                        details_md = re.sub(r'#\.', r'*', details_md, flags=re.MULTILINE)
+                        details_md = re.sub(r'\\ ', r' ', details_md, flags=re.MULTILINE)
+                        details_md = re.sub(r'(^\.\.\s+([^:]+\:)\s+(https?://[^\s]+))', r' - \2 `\3`', details_md,
+                                            flags=re.MULTILINE)
+                        details_md = re.sub(r'<#', r'<\#', details_md, flags=re.MULTILINE)
+                        details_md = re.sub(r'>_', r'>', details_md, flags=re.MULTILINE)
+                        details_md = re.sub(r'>`_', r'>`', details_md, flags=re.MULTILINE)
+                        details_md = re.sub(r"` (?=\W)", r"`", details_md, flags=re.MULTILINE)
+                        md = Markdown(details_md, code_theme=BrightBlueStyle)
+                        console.print(md)
+                else:
+                    console.print(f"[cyan]{i:>6}.[/] [bold]{pkg}[/bold]")
 
         if len(matches) > max_desc and args.desc:
             console.print(f"... and {len(matches) - max_desc} more matches")
