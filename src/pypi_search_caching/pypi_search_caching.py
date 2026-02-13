@@ -55,10 +55,12 @@ LMDB_CACHE_MAX_AGE_SECONDS = 7 * 24 * 3600  # 7 days
 from pygments.style import Style
 from pygments.token import Token
 
-custom_theme = Theme({
-    "markdown.code": "blue1 on #2d2d2d",
-    "markdown.code_block": "on #2d2d2d",
-})
+custom_theme = Theme(
+    {
+        "markdown.code": "blue1 on #2d2d2d",
+        "markdown.code_block": "on #2d2d2d",
+    }
+)
 
 
 class BrightBlueStyle(Style):
@@ -67,14 +69,14 @@ class BrightBlueStyle(Style):
     background_color = "#2d2d2d"  # dark grey background
 
     styles = {
-        Token: '#87ceeb',  # light blue (sky blue) for default text
-        Token.Keyword: 'bold #87ceeb',
-        Token.Name: '#87ceeb',
-        Token.String: '#add8e6',  # lighter blue for strings
-        Token.Number: '#87ceeb',
-        Token.Operator: '#87ceeb',
-        Token.Comment: 'italic #6495ed',  # cornflower blue for comments
-        Token.Punctuation: '#87ceeb',
+        Token: "#87ceeb",  # light blue (sky blue) for default text
+        Token.Keyword: "bold #87ceeb",
+        Token.Name: "#87ceeb",
+        Token.String: "#add8e6",  # lighter blue for strings
+        Token.Number: "#87ceeb",
+        Token.Operator: "#87ceeb",
+        Token.Comment: "italic #6495ed",  # cornflower blue for comments
+        Token.Punctuation: "#87ceeb",
     }
 
 
@@ -85,57 +87,57 @@ from tqdm import tqdm
 
 def extract_raw_html_blocks(text):
     """Extract and convert raw:: html blocks to markdown."""
-    pattern = r'\.\.\s+raw::\s+html\s*\n\s*\n((?:[ \t]+[^\n]*\n?)*)'
+    pattern = r"\.\.\s+raw::\s+html\s*\n\s*\n((?:[ \t]+[^\n]*\n?)*)"
 
     def convert_html_block(match):
         html_content = match.group(1)
-        lines = [line.lstrip() for line in html_content.split('\n') if line.strip()]
-        html_content = '\n'.join(lines)
+        lines = [line.lstrip() for line in html_content.split("\n") if line.strip()]
+        html_content = "\n".join(lines)
 
         if html_content.strip():
             h = html2text.HTML2Text()
             h.ignore_links = False
             h.body_width = 0
             md_content = h.handle(html_content).strip()
-            return f'{md_content}\n\n'
-        return ''
+            return f"{md_content}\n\n"
+        return ""
 
     return re.sub(pattern, convert_html_block, text, flags=re.MULTILINE)
 
 
 def convert_rst_code_blocks(text: str):
-    re_lang = re.compile(r'^.. code-block::\s+(\S+)', flags=re.IGNORECASE)
-    re_end_code_block = re.compile(r'^\S+')
-    lines = ''
+    re_lang = re.compile(r"^.. code-block::\s+(\S+)", flags=re.IGNORECASE)
+    re_end_code_block = re.compile(r"^\S+")
+    lines = ""
     in_cb = False  # In CodeBlock
     # For logic that stops generating an additional line at the top of a code-block
     cb_lns = 0
     for ln in text.splitlines():
         ln = ln.rstrip()
-        if ln.startswith('.. code-block::'):
+        if ln.startswith(".. code-block::"):
             lang = None
             if re_lang.match(ln):
                 lang = re_lang.match(ln).group(1)
             if lang is None:
-                lang = 'Code'
+                lang = "Code"
             ln = f"```{lang}"
             in_cb = True  # In CodeBlock
         elif re_end_code_block.match(ln) and in_cb:
-            ln = f'```\n{ln}'
+            ln = f"```\n{ln}"
             in_cb = False  # Out of CodeBlock
             cb_lns = 0
         if in_cb and cb_lns == 0:
-            lines += ln + '\n'
+            lines += ln + "\n"
             cb_lns += 1
         else:
-            lines += ln + '\n'
+            lines += ln + "\n"
     if in_cb:
-        lines += '```\n'
+        lines += "```\n"
     return lines
 
 
 def convert_rst_table(text: str, console: Console = None) -> str:
-    re_table = re.compile(r'^.. list-table::', flags=re.IGNORECASE | re.MULTILINE)
+    re_table = re.compile(r"^.. list-table::", flags=re.IGNORECASE | re.MULTILINE)
     lines_out = []
     i = 0
     text_lines = text.splitlines()
@@ -148,22 +150,27 @@ def convert_rst_table(text: str, console: Console = None) -> str:
             while i < len(text_lines):
                 next_ln = text_lines[i]
                 stripped = next_ln.lstrip()
-                if stripped.startswith(':header-rows:'):
+                if stripped.startswith(":header-rows:"):
                     table_block.append(next_ln)
                     i += 1
                     continue
-                if stripped and not stripped.startswith('*') and next_ln.strip() and not next_ln.startswith('  '):
+                if (
+                    stripped
+                    and not stripped.startswith("*")
+                    and next_ln.strip()
+                    and not next_ln.startswith("  ")
+                ):
                     break
                 table_block.append(next_ln)
                 i += 1
             # Parse the table block
-            table_text = '\n'.join(table_block)
+            table_text = "\n".join(table_block)
             md_table = parse_simple_rst_list_table(table_text)
             lines_out.append(rich_table_to_markdown(md_table, console=console))
         else:
             lines_out.append(ln)
             i += 1
-    return '\n'.join(lines_out)
+    return "\n".join(lines_out)
 
 
 def parse_simple_rst_list_table(text: str) -> Table:
@@ -256,13 +263,13 @@ class CacheManager:
         try:
             env = self._get_env()
             with env.begin() as txn:
-                value = txn.get(b'all_packages')
+                value = txn.get(b"all_packages")
                 if value:
-                    cache_entry = json.loads(value.decode('utf-8'))
-                    compressed = base64.b64decode(cache_entry['data'])
-                    ts = cache_entry['timestamp']
+                    cache_entry = json.loads(value.decode("utf-8"))
+                    compressed = base64.b64decode(cache_entry["data"])
+                    ts = cache_entry["timestamp"]
                     if time.time() - ts < CACHE_MAX_AGE_SECONDS:
-                        packages_json = zlib.decompress(compressed).decode('utf-8')
+                        packages_json = zlib.decompress(compressed).decode("utf-8")
                         return json.loads(packages_json)
         except Exception as e:
             logging.warning(f"LMDB load error: {e}")
@@ -280,13 +287,16 @@ class CacheManager:
 
     def save(self, packages: List[str]):
         try:
-            packages_json = json.dumps(packages).encode('utf-8')
+            packages_json = json.dumps(packages).encode("utf-8")
             compressed = zlib.compress(packages_json)
-            cache_entry = {'data': base64.b64encode(compressed).decode('utf-8'), 'timestamp': time.time()}
-            value = json.dumps(cache_entry).encode('utf-8')
+            cache_entry = {
+                "data": base64.b64encode(compressed).decode("utf-8"),
+                "timestamp": time.time(),
+            }
+            value = json.dumps(cache_entry).encode("utf-8")
             env = self._get_env()
             with env.begin(write=True) as txn:
-                txn.put(b'all_packages', value)
+                txn.put(b"all_packages", value)
             # Delete legacy if exists
             if CACHE_FILE.exists():
                 CACHE_FILE.unlink()
@@ -323,7 +333,14 @@ def save_packages_to_cache(packages):
 def init_lmdb_env() -> lmdb.Environment:
     """Initialize and return an LMDB environment for caching package data."""
     LMDB_DIR.mkdir(parents=True, exist_ok=True)
-    env = lmdb.open(str(LMDB_DIR), map_size=10 * 1024 ** 3, readonly=False, lock=False, readahead=False, meminit=False)
+    env = lmdb.open(
+        str(LMDB_DIR),
+        map_size=10 * 1024**3,
+        readonly=False,
+        lock=False,
+        readahead=False,
+        meminit=False,
+    )
     return env
 
 
@@ -335,15 +352,15 @@ def prune_lmdb_cache(env: lmdb.Environment, verbose=False) -> int:
         cursor = txn.cursor()
         to_delete = []
         for key, value in cursor:
-            if key == b'all_packages':
+            if key == b"all_packages":
                 continue
             try:
                 pos = 0
-                len_h, = struct.unpack('>I', value[pos:pos + 4])
+                (len_h,) = struct.unpack(">I", value[pos : pos + 4])
                 pos += 4
-                headers_bytes = value[pos:pos + len_h]
+                headers_bytes = value[pos : pos + len_h]
                 headers = msgpack.unpackb(headers_bytes, raw=False)
-                timestamp = headers.get('timestamp')
+                timestamp = headers.get("timestamp")
                 if timestamp is None or now - timestamp > LMDB_CACHE_MAX_AGE_SECONDS:
                     to_delete.append(key)
             except (struct.error, msgpack.ExtraData, ValueError):
@@ -359,92 +376,168 @@ def prune_lmdb_cache(env: lmdb.Environment, verbose=False) -> int:
 
 def extract_headers(resp: requests.Response) -> Dict[str, Any]:
     """Extract relevant headers from a requests response for caching."""
+    etag = resp.headers.get("ETag", "")
+    last_modified = resp.headers.get("Last-Modified")
     return {
-        'etag': resp.headers.get('ETag'),
-        'last_modified': resp.headers.get('Last-Modified'),
-        'timestamp': time.time()
+        "etag": etag if etag else None,
+        "last_modified": last_modified,
+        "timestamp": time.time(),
     }
 
 
-def store_package_data(env: lmdb.Environment, package_name: str, headers: Dict[str,
-Any], json_data: str, md_data: Optional[str] = None, verbose=False):
+def store_package_data(
+    env: lmdb.Environment,
+    package_name: str,
+    headers: Dict[str, Any],
+    json_data: str,
+    md_data: Optional[str] = None,
+    verbose=False,
+):
     """Store package JSON data and optional Markdown in LMDB with headers, using compression and length-prefixing."""
     try:
         with env.begin(write=True) as txn:
-            key = package_name.encode('utf-8')
+            key = package_name.encode("utf-8")
             headers_bytes = msgpack.packb(headers)
-            json_compressed = zlib.compress(json_data.encode('utf-8'))
+            json_compressed = zlib.compress(json_data.encode("utf-8"))
             if md_data:
-                md_compressed = zlib.compress(md_data.encode('utf-8'))
+                md_compressed = zlib.compress(md_data.encode("utf-8"))
             else:
-                md_compressed = b''
+                md_compressed = b""
 
             value = (
-                    struct.pack('>I', len(headers_bytes)) + headers_bytes +
-                    struct.pack('>I', len(json_compressed)) + json_compressed +
-                    struct.pack('>I', len(md_compressed)) + md_compressed
+                struct.pack(">I", len(headers_bytes))
+                + headers_bytes
+                + struct.pack(">I", len(json_compressed))
+                + json_compressed
+                + struct.pack(">I", len(md_compressed))
+                + md_compressed
             )
             txn.put(key, value)
         if verbose:
             logging.info(f"Stored {package_name} in LMDB cache")
     except Exception:
-        if verbose or test_mode:
-            logging.warning(f"Failed to store {package_name} in LMDB cache")
+        logging.warning(f"Failed to store {package_name} in LMDB cache")
         raise
 
 
-def retrieve_package_data(env: lmdb.Environment, package_name: str) -> Optional[Dict[str, Any]]:
+def retrieve_package_data(
+    env: lmdb.Environment, package_name: str
+) -> Optional[Dict[str, Any]]:
     """Retrieve cached package data from LMDB, decompressing and parsing as needed."""
     with env.begin() as txn:
-        key = package_name.encode('utf-8')
+        key = package_name.encode("utf-8")
         value = txn.get(key)
         if value is None:
             return None
 
         pos = 0
-        len_h, = struct.unpack('>I', value[pos:pos + 4])
+        (len_h,) = struct.unpack(">I", value[pos : pos + 4])
         pos += 4
-        headers_bytes = value[pos:pos + len_h]
+        headers_bytes = value[pos : pos + len_h]
         pos += len_h
 
-        len_j, = struct.unpack('>I', value[pos:pos + 4])
+        (len_j,) = struct.unpack(">I", value[pos : pos + 4])
         pos += 4
-        json_compressed = value[pos:pos + len_j]
+        json_compressed = value[pos : pos + len_j]
         pos += len_j
 
-        len_m, = struct.unpack('>I', value[pos:pos + 4])
+        (len_m,) = struct.unpack(">I", value[pos : pos + 4])
         pos += 4
-        md_compressed = value[pos:pos + len_m]
+        md_compressed = value[pos : pos + len_m]
 
         try:
             headers = msgpack.unpackb(headers_bytes, raw=False)
         except msgpack.ExtraData:
             return None
         try:
-            json_data = zlib.decompress(json_compressed).decode('utf-8')
+            json_data = zlib.decompress(json_compressed).decode("utf-8")
         except zlib.error:
             return None
         md_data = None
         if len_m > 0:
             try:
-                md_data = zlib.decompress(md_compressed).decode('utf-8')
+                md_data = zlib.decompress(md_compressed).decode("utf-8")
             except zlib.error:
-                logging.warning(f"Invalid MD compression for {package_name}, using json only")
+                logging.warning(
+                    f"Invalid MD compression for {package_name}, using json only"
+                )
                 md_data = None
 
-        return {'headers': headers, 'json': json_data, 'md': md_data}
+        return {"headers": headers, "json": json_data, "md": md_data}
 
 
-def get_package_long_description(package_name: str, verbose: bool = False, test_mode: bool = False) -> str:
-    env = None
+def get_package_long_description(
+    package_name: str,
+    verbose: bool = False,
+    test_mode: bool = False,
+    validate_cache: bool = False,
+) -> str:
+    env: Optional[lmdb.Environment] = None
     try:
         env = init_lmdb_env()
+        prune_lmdb_cache(env, verbose=verbose)
         cached = retrieve_package_data(env, package_name)
-        if cached and (time.time() - cached['headers']['timestamp']) < LMDB_CACHE_MAX_AGE_SECONDS:
-            if verbose or test_mode:
-                logging.info(f"Cache hit for description of {package_name}")
-            data = json.loads(cached['json'])
-            return data.get('info', {}).get('description', '')
+        fresh = (
+            cached
+            and (time.time() - cached["headers"]["timestamp"])
+            < LMDB_CACHE_MAX_AGE_SECONDS
+        )
+        if fresh:
+            data_str = cached["json"]
+            data = json.loads(data_str)
+            desc = data.get("info", {}).get("description", "")
+            if not validate_cache:
+                if verbose or test_mode:
+                    logging.info(f"Cache hit for {package_name}")
+                return desc
+            # conditional
+            req_headers: Dict[str, str] = {}
+            etag = cached["headers"].get("etag")
+            if etag:
+                req_headers["If-None-Match"] = etag
+            lmod = cached["headers"].get("last_modified")
+            if lmod:
+                req_headers["If-Modified-Since"] = lmod
+            url = PYPI_JSON_URL.format(package_name=package_name)
+            resp = requests.get(
+                url, headers=req_headers if req_headers else None, timeout=10
+            )
+            if resp.status_code == 304:
+                if verbose or test_mode:
+                    logging.info(
+                        f"Cache validated (304) for {package_name}"
+                    )
+                cached["headers"]["timestamp"] = time.time()
+                store_package_data(
+                    env, package_name, cached["headers"], data_str, verbose=verbose
+                )
+                return desc
+            elif resp.status_code == 200:
+                if verbose or test_mode:
+                    logging.info(
+                        f"Cache updated (200) for description of {package_name}"
+                    )
+                resp.raise_for_status()
+                data = resp.json()
+                desc = data.get("info", {}).get("description", "")
+                headers = extract_headers(resp)
+                json_data = json.dumps(data)
+                store_package_data(
+                    env, package_name, headers, json_data, verbose=verbose
+                )
+                return desc
+            elif resp.status_code == 412:
+                if verbose or test_mode:
+                    logging.info(
+                        f"Precondition failed (412) for description of {package_name}, refetching unconditionally"
+                    )
+            else:
+                if verbose or test_mode:
+                    logging.warning(
+                        f"Cache validation failed for description of {package_name} (status {resp.status_code}), using cache"
+                    )
+                return desc
+        # fall through
     except Exception as e:
         if verbose or test_mode:
             logging.warning(f"Cache error for {package_name}: {e}")
@@ -452,43 +545,46 @@ def get_package_long_description(package_name: str, verbose: bool = False, test_
         if env:
             env.close()
 
-    # Fetch fresh
+    if verbose or test_mode:
+        logging.info(f"Cache miss for {package_name}, fetching from PyPI")
+
+    # unconditional fetch
     url = PYPI_JSON_URL.format(package_name=package_name)
     try:
         resp = requests.get(url, timeout=10)
         if resp.status_code == 404:
-            return ''
+            return ""
         resp.raise_for_status()
         data = resp.json()
-        desc = data.get('info', {}).get('description', '')
-
-        # Store to cache
+        desc = data.get("info", {}).get("description", "")
+        # store
         try:
             env = init_lmdb_env()
             headers = extract_headers(resp)
             json_data = json.dumps(data)
-            store_package_data(env, package_name, headers, json_data, verbose=True)
+            store_package_data(env, package_name, headers, json_data, verbose=verbose)
             env.close()
+            if verbose or test_mode:
+                logging.info(f"Fetched and cached {package_name}")
         except Exception as e:
             if verbose or test_mode:
                 logging.warning(f"Failed to cache description for {package_name}: {e}")
-
-        if verbose or test_mode:
-            logging.info(f"Fetched description for {package_name} from PyPI")
         return desc
     except requests.RequestException as e:
         if verbose or test_mode:
             logging.error(f"Failed to fetch description for {package_name}: {e}")
-        return ''
+        return ""
     except ValueError as e:
         if verbose or test_mode:
             logging.error(f"Invalid JSON for {package_name}: {e}")
-        return ''
+        return ""
 
 
 def fetch_all_package_names(limit=None):
     url = PYPI_SIMPLE_URL
-    print("Fetching fresh PyPI package index... (may take a few seconds)", file=sys.stderr)
+    print(
+        "Fetching fresh PyPI package index... (may take a few seconds)", file=sys.stderr
+    )
 
     try:
         resp = requests.get(url, timeout=15)
@@ -528,158 +624,309 @@ def get_packages(refresh_cache):
     return packages
 
 
-def fetch_project_details(package_name, console=None, include_desc=False, verbose=False, test_mode: bool = False):
-    env = None
+def fetch_project_details(
+    package_name: str,
+    console: Optional[Console] = None,
+    include_desc: bool = False,
+    verbose: bool = False,
+    test_mode: bool = False,
+    validate_cache: bool = False,
+) -> Optional[str]:
+    env: Optional[lmdb.Environment] = None
     try:
         env = init_lmdb_env()
         prune_lmdb_cache(env, verbose=verbose)
         cached = retrieve_package_data(env, package_name)
-        if cached and (time.time() - cached['headers']['timestamp']) < LMDB_CACHE_MAX_AGE_SECONDS:
-            if verbose or test_mode:
-                logging.info(f"Cache hit for {package_name}")
-            data = json.loads(cached['json'])
-            info = data.get('info', {})
-            if include_desc and cached['md']:
-                return cached['md']
+        fresh = (
+            cached
+            and (time.time() - cached["headers"]["timestamp"])
+            < LMDB_CACHE_MAX_AGE_SECONDS
+        )
+        if fresh:
+            data_str = cached["json"]
+            data = json.loads(data_str)
+            info = data.get("info", {})
+            if include_desc and cached["md"]:
+                md = cached["md"]
             else:
                 md_parts = [f"## {package_name}"]
                 md_parts.append(f"**Version:** `{info.get('version', 'N/A')}`")
-                md_parts.append(f"**Requires Python:** {info.get('requires_python', 'N/A')}")
-                homepage = info.get('home_page')
+                md_parts.append(
+                    f"**Requires Python:** {info.get('requires_python', 'N/A')}"
+                )
+                homepage = info.get("home_page")
                 if homepage:
                     md_parts.append(f"**Homepage:** [{homepage}]({homepage})")
-                project_urls = info.get('project_urls', {})
-                release_url = info.get('release_url') or project_urls.get('Download URL') or project_urls.get('Source')
+                project_urls = info.get("project_urls", {})
+                release_url = (
+                    info.get("release_url")
+                    or project_urls.get("Download URL")
+                    or project_urls.get("Source")
+                )
                 if release_url:
                     md_parts.append(f"**Release:** [{release_url}]({release_url})")
-                bug_tracker = None
-                if project_urls:
-                    bug_tracker = project_urls.get('Bug Tracker')
+                bug_tracker = project_urls.get("Bug Tracker")
                 if bug_tracker:
                     md_parts.append(f"**Bug Tracker:** [{bug_tracker}]({bug_tracker})")
-                classifiers = info.get('classifiers', [])
+                classifiers = info.get("classifiers", [])
                 if classifiers:
-                    clf_md = '\n'.join([f'- {c}' for c in classifiers[:15]])
+                    clf_md = "\n".join([f"- {c}" for c in classifiers[:15]])
                     md_parts.append(f"**Classifiers:**\n{clf_md}")
-                summary = info.get('summary', '')
+                summary = info.get("summary", "")
                 if summary:
                     md_parts.append(f"**Summary:** {summary}")
-        else:
-            if verbose or test_mode:
-                logging.info(f"Cache miss for {package_name}, fetching from PyPI")
-    except Exception:
+                md = "\n\n".join(md_parts)
+            if not validate_cache:
+                if verbose or test_mode:
+                    logging.info(f"Cache hit for {package_name}")
+                return md
+            # conditional validate
+            req_headers: Dict[str, str] = {}
+            etag = cached["headers"].get("etag")
+            if etag:
+                req_headers["If-None-Match"] = etag
+            lmod = cached["headers"].get("last_modified")
+            if lmod:
+                req_headers["If-Modified-Since"] = lmod
+            url = PYPI_JSON_URL.format(package_name=package_name)
+            resp = requests.get(
+                url, headers=req_headers if req_headers else None, timeout=10
+            )
+            if resp.status_code == 304:
+                if verbose or test_mode:
+                    logging.info(f"Cache validated (304) for {package_name}")
+                cached["headers"]["timestamp"] = time.time()
+                store_package_data(
+                    env,
+                    package_name,
+                    cached["headers"],
+                    data_str,
+                    cached.get("md"),
+                    verbose=verbose,
+                )
+                return md
+            elif resp.status_code == 200:
+                if verbose or test_mode:
+                    logging.info(f"Cache updated (200) for {package_name}")
+                resp.raise_for_status()
+                data = resp.json()
+                info = data.get("info", {})
+                json_data = json.dumps(data)
+                md_parts = [f"## {package_name}"]
+                md_parts.append(f"**Version:** `{info.get('version', 'N/A')}`")
+                md_parts.append(
+                    f"**Requires Python:** {info.get('requires_python', 'N/A')}"
+                )
+                homepage = info.get("home_page")
+                if homepage:
+                    md_parts.append(f"**Homepage:** [{homepage}]({homepage})")
+                project_urls = info.get("project_urls", {})
+                release_url = (
+                    info.get("release_url")
+                    or project_urls.get("Download URL")
+                    or project_urls.get("Source")
+                )
+                if release_url:
+                    md_parts.append(f"**Release:** [{release_url}]({release_url})")
+                bug_tracker = project_urls.get("Bug Tracker")
+                if bug_tracker:
+                    md_parts.append(f"**Bug Tracker:** [{bug_tracker}]({bug_tracker})")
+                classifiers = info.get("classifiers", [])
+                if classifiers:
+                    clf_md = "\n".join([f"- {c}" for c in classifiers[:15]])
+                    md_parts.append(f"**Classifiers:**\n{clf_md}")
+                summary = info.get("summary", "")
+                if summary:
+                    md_parts.append(f"**Summary:** {summary}")
+                full_md = "\n\n".join(md_parts)
+                md_to_store = None
+                if include_desc:
+                    long_desc = info.get("description", "")
+                    if long_desc:
+                        long_desc = convert_rst_table(long_desc, console)
+                        long_desc = extract_raw_html_blocks(long_desc)
+                        md_parts.append(f"**Full Description:**\n{long_desc}...")
+                        full_md = "\n\n".join(md_parts)
+                        md_to_store = full_md
+                new_headers = extract_headers(resp)
+                store_package_data(
+                    env,
+                    package_name,
+                    new_headers,
+                    json_data,
+                    md_to_store,
+                    verbose=verbose,
+                )
+                return full_md
+            else:
+                if verbose or test_mode:
+                    if resp.status_code == 412:
+                        logging.info(
+                            f"Precondition failed (412) for {package_name}, refetching unconditionally"
+                        )
+                    else:
+                        logging.warning(
+                            f"Cache validation failed for {package_name} (status {resp.status_code}), using cache"
+                        )
+                return md
+    except Exception as e:
         if verbose or test_mode:
-            logging.warning(f"LMDB error for {package_name}, falling back to direct fetch")
-        # Fallback: proceed without LMDB caching
-        pass
+            logging.warning(
+                f"LMDB error for {package_name}: {e}, falling back to direct fetch"
+            )
     finally:
         if env:
             env.close()
 
-    url = PYPI_JSON_URL
-    # Use a regexp to change '{package_name}' to the value in package_name.
-    url = re.sub(r'\{package_name\}', package_name, url)
+    if verbose or test_mode:
+        logging.info(f"Cache miss for {package_name}, fetching from PyPI")
+
+    # unconditional fetch
+    url = PYPI_JSON_URL.format(package_name=package_name)
     try:
         resp = requests.get(url, timeout=10)
         if resp.status_code == 404:
             return None
         resp.raise_for_status()
         data = resp.json()
-    except (requests.RequestException, ValueError):
+        info = data.get("info", {})
+        md_parts = [f"## {package_name}"]
+        md_parts.append(f"**Version:** `{info.get('version', 'N/A')}`")
+        md_parts.append(f"**Requires Python:** {info.get('requires_python', 'N/A')}")
+        homepage = info.get("home_page")
+        if homepage:
+            md_parts.append(f"**Homepage:** [{homepage}]({homepage})")
+        project_urls = info.get("project_urls", {})
+        release_url = (
+            info.get("release_url")
+            or project_urls.get("Download URL")
+            or project_urls.get("Source")
+        )
+        if release_url:
+            md_parts.append(f"**Release:** [{release_url}]({release_url})")
+        bug_tracker = project_urls.get("Bug Tracker")
+        if bug_tracker:
+            md_parts.append(f"**Bug Tracker:** [{bug_tracker}]({bug_tracker})")
+        classifiers = info.get("classifiers", [])
+        if classifiers:
+            clf_md = "\n".join([f"- {c}" for c in classifiers[:15]])
+            md_parts.append(f"**Classifiers:**\n{clf_md}")
+        summary = info.get("summary", "")
+        if summary:
+            md_parts.append(f"**Summary:** {summary}")
+        full_md = "\n\n".join(md_parts)
+        json_data = json.dumps(data)
+        md_to_store = None
+        if include_desc:
+            long_desc = info.get("description", "")
+            if long_desc:
+                long_desc = convert_rst_table(long_desc, console)
+                long_desc = extract_raw_html_blocks(long_desc)
+                md_parts.append(f"**Full Description:**\n{long_desc}...")
+                full_md = "\n\n".join(md_parts)
+                md_to_store = full_md
+        # Store to LMDB on success
+        try:
+            env = init_lmdb_env()
+            headers = extract_headers(resp)
+            store_package_data(
+                env, package_name, headers, json_data, md_to_store, verbose=verbose
+            )
+            env.close()
+        except Exception:
+            logging.warning(f"Failed to store {package_name} in LMDB cache")
+        return full_md
+    except (requests.RequestException, ValueError) as e:
         if verbose or test_mode:
-            logging.error(f"Failed to fetch {package_name} from PyPI")
+            logging.error(f"Failed to fetch {package_name} from PyPI: {e}")
         return None
-
-    info = data.get('info', {})
-    md_parts = [f"## {package_name}"]
-    md_parts.append(f"**Version:** `{info.get('version', 'N/A')}`")
-    md_parts.append(f"**Requires Python:** {info.get('requires_python', 'N/A')}")
-    homepage = info.get('home_page')
-    if homepage:
-        md_parts.append(f"**Homepage:** [{homepage}]({homepage})")
-    project_urls = info.get('project_urls', {})
-    release_url = info.get('release_url') or project_urls.get('Download URL') or project_urls.get('Source')
-    if release_url:
-        md_parts.append(f"**Release:** [{release_url}]({release_url})")
-    bug_tracker = None
-    if project_urls:
-        bug_tracker = project_urls.get('Bug Tracker')
-    if bug_tracker:
-        md_parts.append(f"**Bug Tracker:** [{bug_tracker}]({bug_tracker})")
-    classifiers = info.get('classifiers', [])
-    if classifiers:
-        clf_md = '\n'.join([f'- {c}' for c in classifiers[:15]])
-        md_parts.append(f"**Classifiers:**\n{clf_md}")
-    summary = info.get('summary', '')
-    if summary:
-        md_parts.append(f"**Summary:** {summary}")
-    full_md = '\n\n'.join(md_parts)
-    json_data = json.dumps(data)
-    md_to_store = None
-    if include_desc:
-        long_desc = info.get('description', '')
-        if long_desc:
-            long_desc = convert_rst_table(long_desc, console)
-            long_desc = extract_raw_html_blocks(long_desc)
-            md_parts.append(f"**Full Description:**\n{long_desc}...")
-            full_md = '\n\n'.join(md_parts)
-            md_to_store = full_md
-
-    # Store to LMDB on success
-    try:
-        env = init_lmdb_env()
-        headers = extract_headers(resp)
-        store_package_data(env, package_name, headers, json_data, md_to_store)
-        env.close()
-    except Exception:
-        logging.warning(f"Failed to store {package_name} in LMDB cache")
-
-    return full_md
 
 
 def get_version():
     try:
-        version = importlib.metadata.version('pypi-search-caching')
+        version = importlib.metadata.version("pypi-search-caching")
         return f"pypi-search-caching {version}"
     except importlib.metadata.PackageNotFoundError:
         # Fallback for development mode
         toml_path = Path(__file__).parent.parent.parent / "pyproject.toml"
         if toml_path.exists():
-            with toml_path.open('rb') as f:
+            with toml_path.open("rb") as f:
                 data = tomllib.load(f)
             return f"{data['project']['name']} {data['project']['version']}"
         else:
-            print("pyproject.toml not found and package not installed.", file=sys.stderr)
+            print(
+                "pyproject.toml not found and package not installed.", file=sys.stderr
+            )
             sys.exit(1)
 
 
 def main():
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
     if len(sys.argv) < 2:
         print("Please provide a regex pattern.", file=sys.stderr)
         sys.exit(1)
     parser = argparse.ArgumentParser(description="Search PyPI packages by regex")
-    parser.add_argument('--version', '-V', action='version', version=get_version())
+    parser.add_argument("--version", "-V", action="version", version=get_version())
     parser.add_argument("pattern", help="Regular expression to match package names")
-    parser.add_argument("-i", "--ignore-case", action="store_true", default=False,
-                        help="Case-insensitive matching (default: on)")
-    parser.add_argument("--desc", "-d", action="store_true",
-                        help="Fetch and show detailed info for first 10 matches")
-    parser.add_argument("--count-only", action="store_true",
-                        help="Only show count of matches")
-    parser.add_argument("--refresh-cache", "-r", action="store_true",
-                        help="Refresh the PyPi cache now. Happens before search.")
-    parser.add_argument("--full-desc", "-f", action="store_true",
-                        help="Include full description in details (with -d)")
-    parser.add_argument("--no-color", "-c", action="store_true",
-                        help="Disable color output")
-    parser.add_argument("--max_desc", "-m", type=int, default=10,
-                        help="Change Max number of descriptions fetched")
-    parser.add_argument("--verbose", "-v", action="store_true",
-                        help="Enable Verbose output")
-    parser.add_argument("--search", "-s", default=None,
-                        help="Regex pattern to filter by long description")
-    parser.add_argument('--test_mode', action='store_true', help='Use logger.info for progress instead of tqdm')
+    parser.add_argument(
+        "-i",
+        "--ignore-case",
+        action="store_true",
+        default=False,
+        help="Case-insensitive matching (default: on)",
+    )
+    parser.add_argument(
+        "--desc",
+        "-d",
+        action="store_true",
+        help="Fetch and show detailed info for first 10 matches",
+    )
+    parser.add_argument(
+        "--count-only", action="store_true", help="Only show count of matches"
+    )
+    parser.add_argument(
+        "--refresh-cache",
+        "-r",
+        action="store_true",
+        help="Refresh the PyPi cache now. Happens before search.",
+    )
+    parser.add_argument(
+        "--validate-cache",
+        action="store_true",
+        help="Validate cache with conditional requests",
+    )
+    parser.add_argument(
+        "--full-desc",
+        "-f",
+        action="store_true",
+        help="Include full description in details (with -d)",
+    )
+    parser.add_argument(
+        "--no-color", "-c", action="store_true", help="Disable color output"
+    )
+    parser.add_argument(
+        "--max_desc",
+        "-m",
+        type=int,
+        default=10,
+        help="Change Max number of descriptions fetched",
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Enable Verbose output"
+    )
+    parser.add_argument(
+        "--search",
+        "-s",
+        default=None,
+        help="Regex pattern to filter by long description",
+    )
+    parser.add_argument(
+        "--test_mode",
+        action="store_true",
+        help="Use logger.info for progress instead of tqdm",
+    )
     args = parser.parse_args()
 
     # Max number of descriptions fetched...
@@ -687,14 +934,15 @@ def main():
 
     # console = Console(force_terminal=True, theme=custom_theme)
     no_color = args.no_color
-    os.environ['LESS'] = '-R'
+    os.environ["LESS"] = "-R"
     if no_color:
-        console = Console(no_color=no_color, force_terminal=False,
-                          theme=None, color_system=None)
+        console = Console(
+            no_color=no_color, force_terminal=False, theme=None, color_system=None
+        )
     else:
-        console = Console(force_terminal=True,
-                          theme=custom_theme,
-                          color_system="truecolor")
+        console = Console(
+            force_terminal=True, theme=custom_theme, color_system="truecolor"
+        )
 
     with console.pager(styles=True):
 
@@ -705,13 +953,15 @@ def main():
             args.pattern = args.pattern.strip('"').strip("'")
             regex = re.compile(f"^{args.pattern}$", flags)
         except re.error as e:
-            console.print(f"[red][bold]\nThe Regular Expression Pattern is Invalid:[/bold][/red]\n" +
-                          f"  [yellow]- {e}[/yellow]\n")
+            console.print(
+                f"[red][bold]\nThe Regular Expression Pattern is Invalid:[/bold][/red]\n"
+                + f"  [yellow]- {e}[/yellow]\n"
+            )
             sys.exit(2)
 
         all_packages = get_packages(args.refresh_cache)
 
-        if args.refresh_cache and args.pattern == '':
+        if args.refresh_cache and args.pattern == "":
             return
 
         matches = [pkg for pkg in all_packages if regex.search(pkg)]
@@ -729,14 +979,28 @@ def main():
             filtered_matches = []
             if args.test_mode:
                 for i, pkg in enumerate(matches, 1):
-                    desc = get_package_long_description(pkg, verbose=args.verbose, test_mode=args.test_mode)
+                    desc = get_package_long_description(
+                        pkg,
+                        verbose=args.verbose,
+                        test_mode=args.test_mode,
+                        validate_cache=args.validate_cache,
+                    )
                     if search_regex.search(desc):
                         filtered_matches.append(pkg)
                     if args.verbose or args.test_mode:
                         logging.info(f"Filtering description {i}/{len(matches)}: {pkg}")
             else:
-                for pkg in tqdm(matches, desc="Filtering descriptions", disable=not sys.stdout.isatty()):
-                    desc = get_package_long_description(pkg, verbose=args.verbose, test_mode=args.test_mode)
+                for pkg in tqdm(
+                    matches,
+                    desc="Filtering descriptions",
+                    disable=not sys.stdout.isatty(),
+                ):
+                    desc = get_package_long_description(
+                        pkg,
+                        verbose=args.verbose,
+                        test_mode=args.test_mode,
+                        validate_cache=args.validate_cache,
+                    )
                     if search_regex.search(desc):
                         filtered_matches.append(pkg)
             matches = filtered_matches
@@ -765,39 +1029,73 @@ def main():
                         logging.info(f"Fetching details {i}/{len(matches)}: {pkg}")
                     # String of i space padded to 4 digits
                     console.rule(f"[cyan]{i}.[/] [bold]{pkg}[/bold]")
-                    details_md = fetch_project_details(pkg, console=console, include_desc=args.full_desc,
-                                                       verbose=args.verbose, test_mode=args.test_mode)
+                    details_md = fetch_project_details(
+                        pkg,
+                        console=console,
+                        include_desc=args.full_desc,
+                        verbose=args.verbose,
+                        test_mode=args.test_mode,
+                        validate_cache=args.validate_cache,
+                    )
                     if details_md:
                         # Filter out '.. image::' from details_md
-                        details_md = '\n'.join([line for line in details_md.split('\n')
-                                                if not (line.startswith('.. image::') or
-                                                        line.startswith('   :height: ') or
-                                                        line.startswith('   :width: ') or
-                                                        line.startswith('   :alt: ') or
-                                                        line.startswith(':raw-html-m2r:') or
-                                                        line.startswith('   :target: ') or
-                                                        line == '|')])
-                        details_md = re.sub(
-                            r'\\?\s*:raw-html-m2r:\s*(`[^`]+`)\\?\s*',
-                            r'\1',
-                            details_md,
-                            flags=re.MULTILINE
+                        details_md = "\n".join(
+                            [
+                                line
+                                for line in details_md.split("\n")
+                                if not (
+                                    line.startswith(".. image::")
+                                    or line.startswith("   :height: ")
+                                    or line.startswith("   :width: ")
+                                    or line.startswith("   :alt: ")
+                                    or line.startswith(":raw-html-m2r:")
+                                    or line.startswith("   :target: ")
+                                    or line == "|"
+                                )
+                            ]
                         )
-                        details_md = re.sub(r'`<br>`', r'\n\n', details_md, flags=re.MULTILINE)
-                        details_md = re.sub(r'#\.', r'*', details_md, flags=re.MULTILINE)
-                        details_md = re.sub(r'\\ ', r' ', details_md, flags=re.MULTILINE)
-                        details_md = re.sub(r'(^\.\.\s+([^:]+\:)\s+(https?://[^\s]+))', r' - \2 `\3`', details_md,
-                                            flags=re.MULTILINE)
-                        details_md = re.sub(r'<#', r'<\#', details_md, flags=re.MULTILINE)
-                        details_md = re.sub(r'>_', r'>', details_md, flags=re.MULTILINE)
-                        details_md = re.sub(r'>`_', r'>`', details_md, flags=re.MULTILINE)
-                        details_md = re.sub(r"` (?=\W)", r"`", details_md, flags=re.MULTILINE)
+                        details_md = re.sub(
+                            r"\\?\s*:raw-html-m2r:\s*(`[^`]+`)\\?\s*",
+                            r"\1",
+                            details_md,
+                            flags=re.MULTILINE,
+                        )
+                        details_md = re.sub(
+                            r"`<br>`", r"\n\n", details_md, flags=re.MULTILINE
+                        )
+                        details_md = re.sub(
+                            r"#\.", r"*", details_md, flags=re.MULTILINE
+                        )
+                        details_md = re.sub(
+                            r"\\ ", r" ", details_md, flags=re.MULTILINE
+                        )
+                        details_md = re.sub(
+                            r"(^\.\.\s+([^:]+\:)\s+(https?://[^\s]+))",
+                            r" - \2 `\3`",
+                            details_md,
+                            flags=re.MULTILINE,
+                        )
+                        details_md = re.sub(
+                            r"<#", r"<\#", details_md, flags=re.MULTILINE
+                        )
+                        details_md = re.sub(r">_", r">", details_md, flags=re.MULTILINE)
+                        details_md = re.sub(
+                            r">`_", r">`", details_md, flags=re.MULTILINE
+                        )
+                        details_md = re.sub(
+                            r"` (?=\W)", r"`", details_md, flags=re.MULTILINE
+                        )
                         md = Markdown(details_md, code_theme=BrightBlueStyle)
                         console.print(md)
                 else:
                     console.print(f"[cyan]{i:>6}.[/] [bold]{pkg}[/bold]")
         else:
-            for i, pkg in tqdm(enumerate(matches, 1), total=len(matches), desc="Processing matches", disable=not sys.stdout.isatty()):
+            for i, pkg in tqdm(
+                enumerate(matches, 1),
+                total=len(matches),
+                desc="Processing matches",
+                disable=not sys.stdout.isatty(),
+            ):
                 if len(pkg) > 50:
                     # Snip junk files...
                     pkg = pkg[:50] + "..."
@@ -807,33 +1105,62 @@ def main():
                 if args.desc:
                     # String of i space padded to 4 digits
                     console.rule(f"[cyan]{i}.[/] [bold]{pkg}[/bold]")
-                    details_md = fetch_project_details(pkg, console=console, include_desc=args.full_desc,
-                                                       verbose=args.verbose, test_mode=args.test_mode)
+                    details_md = fetch_project_details(
+                        pkg,
+                        console=console,
+                        include_desc=args.full_desc,
+                        verbose=args.verbose,
+                        test_mode=args.test_mode,
+                        validate_cache=args.validate_cache,
+                    )
                     if details_md:
                         # Filter out '.. image::' from details_md
-                        details_md = '\n'.join([line for line in details_md.split('\n')
-                                                if not (line.startswith('.. image::') or
-                                                        line.startswith('   :height: ') or
-                                                        line.startswith('   :width: ') or
-                                                        line.startswith('   :alt: ') or
-                                                        line.startswith(':raw-html-m2r:') or
-                                                        line.startswith('   :target: ') or
-                                                        line == '|')])
-                        details_md = re.sub(
-                            r'\\?\s*:raw-html-m2r:\s*(`[^`]+`)\\?\s*',
-                            r'\1',
-                            details_md,
-                            flags=re.MULTILINE
+                        details_md = "\n".join(
+                            [
+                                line
+                                for line in details_md.split("\n")
+                                if not (
+                                    line.startswith(".. image::")
+                                    or line.startswith("   :height: ")
+                                    or line.startswith("   :width: ")
+                                    or line.startswith("   :alt: ")
+                                    or line.startswith(":raw-html-m2r:")
+                                    or line.startswith("   :target: ")
+                                    or line == "|"
+                                )
+                            ]
                         )
-                        details_md = re.sub(r'`<br>`', r'\n\n', details_md, flags=re.MULTILINE)
-                        details_md = re.sub(r'#\.', r'*', details_md, flags=re.MULTILINE)
-                        details_md = re.sub(r'\\ ', r' ', details_md, flags=re.MULTILINE)
-                        details_md = re.sub(r'(^\.\.\s+([^:]+\:)\s+(https?://[^\s]+))', r' - \2 `\3`', details_md,
-                                            flags=re.MULTILINE)
-                        details_md = re.sub(r'<#', r'<\#', details_md, flags=re.MULTILINE)
-                        details_md = re.sub(r'>_', r'>', details_md, flags=re.MULTILINE)
-                        details_md = re.sub(r'>`_', r'>`', details_md, flags=re.MULTILINE)
-                        details_md = re.sub(r"` (?=\W)", r"`", details_md, flags=re.MULTILINE)
+                        details_md = re.sub(
+                            r"\\?\s*:raw-html-m2r:\s*(`[^`]+`)\\?\s*",
+                            r"\1",
+                            details_md,
+                            flags=re.MULTILINE,
+                        )
+                        details_md = re.sub(
+                            r"`<br>`", r"\n\n", details_md, flags=re.MULTILINE
+                        )
+                        details_md = re.sub(
+                            r"#\.", r"*", details_md, flags=re.MULTILINE
+                        )
+                        details_md = re.sub(
+                            r"\\ ", r" ", details_md, flags=re.MULTILINE
+                        )
+                        details_md = re.sub(
+                            r"(^\.\.\s+([^:]+\:)\s+(https?://[^\s]+))",
+                            r" - \2 `\3`",
+                            details_md,
+                            flags=re.MULTILINE,
+                        )
+                        details_md = re.sub(
+                            r"<#", r"<\#", details_md, flags=re.MULTILINE
+                        )
+                        details_md = re.sub(r">_", r">", details_md, flags=re.MULTILINE)
+                        details_md = re.sub(
+                            r">`_", r">`", details_md, flags=re.MULTILINE
+                        )
+                        details_md = re.sub(
+                            r"` (?=\W)", r"`", details_md, flags=re.MULTILINE
+                        )
                         md = Markdown(details_md, code_theme=BrightBlueStyle)
                         console.print(md)
                 else:

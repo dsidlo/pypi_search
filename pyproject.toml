@@ -49,3 +49,6 @@ dev = [
 
 [tool.pytest.ini_options]
 addopts = '-m "not refresh_cache"'
+markers = [
+    "refresh_cache: mark a test as requiring cache refresh"
+]

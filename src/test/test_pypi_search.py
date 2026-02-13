@@ -456,7 +456,7 @@ class TestTestModeAndProgress:
         def mock_get_packages(refresh):
             return mock_packages
         monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_packages', mock_get_packages)
-        def mock_get_desc(pkg, verbose=False, test_mode=False):
+        def mock_get_desc(pkg, verbose=False, test_mode=False, validate_cache=False):
             return ""
         monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_package_long_description', mock_get_desc)
         import sys
@@ -469,7 +469,7 @@ class TestTestModeAndProgress:
         def mock_get_packages(refresh):
             return mock_packages
         monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_packages', mock_get_packages)
-        def mock_get_desc(pkg, verbose=False, test_mode=False):
+        def mock_get_desc(pkg, verbose=False, test_mode=False, validate_cache=False):
             return ""
         monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_package_long_description', mock_get_desc)
         import sys
@@ -498,7 +498,7 @@ class TestTestModeAndProgress:
         def mock_get_packages(refresh):
             return mock_packages
         monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_packages', mock_get_packages)
-        def mock_fetch(pkg, console=None, include_desc=False, verbose=False, test_mode=False):
+        def mock_fetch(pkg, console=None, include_desc=False, verbose=False, test_mode=False, validate_cache=False):
             return "details"
         monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.fetch_project_details', mock_fetch)
         import sys
@@ -514,7 +514,7 @@ class TestTestModeAndProgress:
         def mock_get_packages(refresh):
             return mock_packages
         monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_packages', mock_get_packages)
-        def mock_get_desc(pkg, verbose=False, test_mode=False):
+        def mock_get_desc(pkg, verbose=False, test_mode=False, validate_cache=False):
             return ""
         monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_package_long_description', mock_get_desc)
         import sys
@@ -1263,7 +1263,7 @@ class TestSearchFilter:
         monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_packages', lambda refresh: mock_packages)
 
         # Mock get_package_long_description
-        def mock_get_desc(pkg, verbose=False, test_mode=False):
+        def mock_get_desc(pkg, verbose=False, test_mode=False, validate_cache=False):
             if pkg == "package-a":
                 return "Description with keyword"
             elif pkg == "package-b":
