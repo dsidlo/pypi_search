@@ -1,4 +1,5 @@
-# pypi-search-caching (pypi_search command)
+# pypi-search-caching
+## Adds the command: pypi_search
 
  - Current Version: v0.0.4b1
 
@@ -12,153 +13,87 @@ Fast, cached regex search over all PyPI packages (~736k+), with optional details
 
 - Regex matching (e.g., `^aio.*`, `flask|django`).
 - Access to pypi.org packages via the simple package API
-  - 23h cache (`~/.cache/pip-search/`)
+  - ~23h TTL for package names (`~/.cache/pypi_search/`)
+  - 7d LMDB caching for details
 - Color output to console
+
+LMDB caching for details, tqdm progress, test_mode for CI.
 
 ## Program Options
 ```bash
-❯ uv run python src/pypi_search.py -h
-usage: pypi_search.py [-h] [--version] [-i] [--desc] [--count-only] [--refresh-cache] [--full-desc] pattern
-
-Search PyPI packages by regex
+usage: pypi_search [-h] [--version] [-i] [-d] [--count-only] [-r] [-f] [--test_mode] pattern
 
 positional arguments:
-  pattern              Regular expression to match package names
+  pattern               Regular expression to match package names (required)
 
 options:
-  -h, --help           show this help message and exit
-  --version, -V        show program`s version number and exit
-  -i, --ignore-case    Case-insensitive matching (default: on)
-  --desc, -d           Fetch and show detailed info for first 10 matches
-  --count-only         Only show count of matches
-  --refresh-cache, -r  Refresh the PyPi cache now. Happens before search.
-  --full-desc, -f      Include full description in details (with -d)
+  -h, --help            show this help message and exit
+  --version, -V         show program's version number and exit
+  -i, --ignore-case     Case-insensitive matching
+  --desc, -d            Fetch and show detailed info for first 10 matches
+  --count-only          Only show count of matches
+  --refresh-cache, -r   Refresh the PyPI cache now. Happens before search.
+  --full-desc, -f       Include full description in details (with -d)
+  --test_mode           Use logger.info for progress instead of tqdm bars (for non-interactive/tests)
 ```
 
 ## Installation
 
 ```bash
-# Standard pip install
+# Using pip
 pip install pypi-search-caching
 
-# uv environment install
+# Using uv
 uv pip install pypi-search-caching
 ```
 
-- Installs pypi_search to ~/.local/bin
+- Installs `pypi_search` command to `~/.local/bin` (pip) or your virtual environment's bin (uv).
 
-## Usage
+## Usage Examples
 
-`pypi_search "pattern"`
-
-`pypi_search --version`
-
-Details for first 10: `pypi_search "flask|django" --desc`
-
-Count only: `pypi_search "pattern" --count-only`
-
+### Basic search
 ```shell
-pypi_search "^aio" -d 
+pypi_search "^aio"
 ```
+Searches for packages starting with "aio" using cached names.
 
-## Examples
-
-Input argument is anchored between '^' start of line and '$' end of line. So if there are not regular expression character, it searches for a specific module...
+### With details
 ```shell
-✦ ❯ ./pypi_search aiohttp 
-Using cached package list (age < 23h)
-Found 1 matching packages:
-
-aiohttp
-
-Total matches: 1
-````
-
-Search for a module that begins with...
-```shell
-✦ ❯ pypi_search "^aio" | less
-
-Found 2,159 matching packages:
-
-AIO-CodeCheck
-AIOAladdinConnect
-AIOConductor
-AIOPayeerAPI
-AIOPools
-...
-aiozmq-heartbeat
-aiozoneinfo
-aiozoom
-aiozyre
-
-Total matches: 2,159
+pypi_search "flask|django" -d
 ```
+Shows details (version, homepage, etc.) for the first 10 matches.
 
-
-Search for a string in the middle of a package name:
+### Refresh cache
 ```shell
- ❯ ./pypi_search '.*aio.*'  | less
-Found 3,094 matching packages:
-
-AIO-CodeCheck
-AIOAladdinConnect
-AIOConductor
-AIOPayeerAPI
-AIOPools
-...
-traio
-trakt_aiohttp
-transitions-aio
-trio-aiohttp
-twm-aiokafka
-txaio
-txaioetcd
-types-aioboto3
-types-aioboto3-lite
-types-aiob[lib](.venv/lib)otocore
-...
-xmaios-bot
-ya-aioclient
-yandex-aiobot-py
-yclients-aio-client
-youtubeaio
-youtubeaio-extended
-z21aio
-
-Total matches: 3,094
+pypi_search "pattern" -r
 ```
+Refreshes the package names cache before searching.
 
-Search for a module that ends with...
+### Test mode
 ```shell
-✦ ❯ ./pypi_search '.*http$'  | less
-
-Found 413 matching packages:
-
-BasicHttp 
-CANedge-HTTP 
-CodernityDB-HTTP 
-CydraGitHTTP 
-Flask-Shell2HTTP 
-...
-zerohttp 
-zhttp 
-zhujiaying-boss-mcp-weather-http 
-zimran-http 
-zipr-http 
-zope.app.http 
-
-Total matches: 413
+pypi_search "^aio" --test_mode
 ```
+Uses logging for progress instead of tqdm bars, useful for CI or non-interactive environments (shows logs).
 
-Filter by long description using regex:
+Progress bars (tqdm) appear during long fetches like details or filtering; caching (~23h TTL for names, 7d for details via LMDB). Use `--test_mode` for non-interactive/tests.
 
+### Filter by description
 ```shell
 pypi_search "aio" --search "async" --count-only
 ```
+Counts packages matching "aio" whose long descriptions contain "async".
 
-*Note: --search uses partial matching (re.search).*
+### Searching Descriptions (Torch Example)
 
+```bash
+pypi_search '^torch.*' -s 'image'
+```
+Searches for torch packages and filters descriptions containing 'image'. Caches long descriptions for subsequent faster searches.
 
+```bash
+pypi_search '^torch.*' -s 'image' -d -f'
+```
+Subsequently, display summary and full long description (from cache) for matching modules.
 
 ## My Dev Environment: 
 
@@ -181,4 +116,3 @@ pypi_search "aio" --search "async" --count-only
 ## Licence
 
 MIT License. Built with Requests + BeautifulSoup.
-
