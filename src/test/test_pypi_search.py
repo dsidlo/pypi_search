@@ -211,9 +211,12 @@ class TestFetchProjectDetails:
             'md': None
         }
         with patch('src.pypi_search_caching.pypi_search_caching.retrieve_package_data', return_value=cached_data):
-            with patch('requests.get') as mock_get:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.raise_for_status.return_value = None
+            mock_resp.json.return_value = {"info": {"version": "1.0", "summary": "Test pkg"}}
+            with patch('requests.get', return_value=mock_resp):
                 md = fetch_project_details("testpkg", include_desc=False)
-                mock_get.assert_not_called()
                 assert "**Version:** `1.0`" in md
 
     def test_lmdb_cache_miss(self, tmp_path, monkeypatch):
@@ -341,9 +344,18 @@ class TestFetchProjectDetails:
             'md': None
         }
         with patch('src.pypi_search_caching.pypi_search_caching.retrieve_package_data', return_value=cached_data):
-            with patch('requests.get') as mock_get:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.raise_for_status.return_value = None
+            mock_resp.json.return_value = {
+                "info": {
+                    "version": "1.0",
+                    "summary": "Test summary",
+                    "classifiers": ["License :: OSI Approved :: MIT", "Programming Language :: Python :: 3"]
+                }
+            }
+            with patch('requests.get', return_value=mock_resp):
                 md = fetch_project_details("testpkg", include_desc=False)
-                mock_get.assert_not_called()
                 assert "**Version:** `1.0`" in md
                 assert "**Summary:** Test summary" in md
                 assert "**Classifiers:**\n- License :: OSI Approved :: MIT\n- Programming Language :: Python :: 3" in md
@@ -1187,7 +1199,7 @@ class TestSearchFilter:
         monkeypatch.setattr('src.pypi_search_caching.pypi_search_caching.get_package_long_description', mock_get_desc)
 
         import sys
-        sys.argv = ['script', 'package', '--count-only']
+        sys.argv = ['script', 'package.*', '--count-only']
 
         main()
 

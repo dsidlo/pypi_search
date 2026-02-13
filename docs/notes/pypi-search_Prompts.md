@@ -228,3 +228,34 @@ Create a step by step plan with tasks for the implementation of LMDB caching for
 3. **Integration with Existing Code**: Modify the pypi-search utility to integrate with LMDB, handling cache initialization, data insertion, and retrieval.
 4. **Testing and Validation**: Implement unit tests and integration tests to validate the correctness and performance of the LMDB caching mechanism.
 5. **Documentation and Maintenance**: Update the documentation to reflect the new caching feature and provide guidance for future maintenance and updates.
+
+When caching model meta-data (summaries/long_desc) instead of the output...
+```
+2026-02-12 16:11:37,894 - INFO - Stored torchbnns in LMDB cache
+2026-02-12 16:11:38,038 - INFO - Stored torchboard in LMDB cache
+2026-02-12 16:11:38,182 - INFO - Stored torchboilerplate in LMDB cache
+2026-02-12 16:11:38,327 - INFO - Stored torchbones in LMDB cache
+2026-02-12 16:11:38,472 - INFO - Stored torch-book in LMDB cache
+2026-02-12 16:11:38,578 - INFO - Stored torchbooster in LMDB cache
+2026-02-12 16:11:38,736 - INFO - Stored torch-bounds in LMDB cache
+2026-02-12 16:11:38,881 - INFO - Stored torchbox in LMDB cache
+2026-02-12 16:11:39,025 - INFO - Stored torch-brain in LMDB cache
+2026-02-12 16:11:39,170 - INFO - Stored torchbricks in LMDB cache
+2026-02-12 16:11:39,210 - INFO - Stored torchbridge-ml in LMDB cache
+2026-02-12 16:11:39,355 - INFO - Stored torchbringer in LMDB cache
+2026-02-12 16:11:39,500 - INFO - Stored torch-bspline in LMDB cache
+2026-02-12 16:11:39,645 - INFO - Stored torch-btg in LMDB cache
+2026-02-12 16:11:39,797 - INFO - Stored torch-buddy in LMDB cache
+2026-02-12 16:11:39,941 - INFO - Stored torchbuilder in LMDB cache
+2026-02-12 16:11:40,111 - INFO - Stored torch-build-nn in LMDB cache
+```
+Output a loading-bar instead ()
+
+After doing a search over descriptions (-s).
+I get the following error on searching for packages...
+```text
+❯ uv run python src/pypi_search_caching/pypi_search_caching.py 'torch.*' 
+Using cache: 1 pkgs
+No matching packages found.
+```
+Is the cache being destroyed somehow?

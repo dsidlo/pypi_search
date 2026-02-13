@@ -20,7 +20,6 @@ Cache dir:
     ~/.cache/pypi_search/pypi_search.cache
 """
 
-
 import sys
 import re
 import argparse
@@ -44,8 +43,6 @@ import struct
 import base64
 from typing import Dict, Any, Optional, List
 
-
-
 PYPI_SIMPLE_URL = "https://pypi.org/simple"
 PYPI_JSON_URL = "https://pypi.org/pypi/{package_name}/json"
 CACHE_DIR = Path.home() / ".cache" / "pypi_search"
@@ -62,6 +59,7 @@ custom_theme = Theme({
     "markdown.code": "blue1 on #2d2d2d",
     "markdown.code_block": "on #2d2d2d",
 })
+
 
 class BrightBlueStyle(Style):
     """Custom Pygments style with light blue code on dark grey."""
@@ -122,7 +120,7 @@ def convert_rst_code_blocks(text: str):
             in_cb = True  # In CodeBlock
         elif re_end_code_block.match(ln) and in_cb:
             ln = f'```\n{ln}'
-            in_cb = False # Out of CodeBlock
+            in_cb = False  # Out of CodeBlock
             cb_lns = 0
         if in_cb and cb_lns == 0:
             lines += ln + '\n'
@@ -323,7 +321,7 @@ def save_packages_to_cache(packages):
 def init_lmdb_env() -> lmdb.Environment:
     """Initialize and return an LMDB environment for caching package data."""
     LMDB_DIR.mkdir(parents=True, exist_ok=True)
-    env = lmdb.open(str(LMDB_DIR), map_size=10 * 1024**3, readonly=False, lock=False, readahead=False, meminit=False)
+    env = lmdb.open(str(LMDB_DIR), map_size=10 * 1024 ** 3, readonly=False, lock=False, readahead=False, meminit=False)
     return env
 
 
@@ -367,7 +365,7 @@ def extract_headers(resp: requests.Response) -> Dict[str, Any]:
 
 
 def store_package_data(env: lmdb.Environment, package_name: str, headers: Dict[str,
-                       Any], json_data: str, md_data: Optional[str] = None, verbose=False):
+Any], json_data: str, md_data: Optional[str] = None, verbose=False):
     """Store package JSON data and optional Markdown in LMDB with headers, using compression and length-prefixing."""
     try:
         with env.begin(write=True) as txn:
@@ -380,13 +378,13 @@ def store_package_data(env: lmdb.Environment, package_name: str, headers: Dict[s
                 md_compressed = b''
 
             value = (
-                struct.pack('>I', len(headers_bytes)) + headers_bytes +
-                struct.pack('>I', len(json_compressed)) + json_compressed +
-                struct.pack('>I', len(md_compressed)) + md_compressed
+                    struct.pack('>I', len(headers_bytes)) + headers_bytes +
+                    struct.pack('>I', len(json_compressed)) + json_compressed +
+                    struct.pack('>I', len(md_compressed)) + md_compressed
             )
             txn.put(key, value)
         if verbose:
-             logging.info(f"Stored {package_name} in LMDB cache")
+            logging.info(f"Stored {package_name} in LMDB cache")
     except Exception:
         logging.warning(f"Failed to store {package_name} in LMDB cache")
         raise
@@ -432,8 +430,6 @@ def retrieve_package_data(env: lmdb.Environment, package_name: str) -> Optional[
                 md_data = None
 
         return {'headers': headers, 'json': json_data, 'md': md_data}
-
-
 
 
 def get_package_long_description(package_name: str, verbose: bool = False) -> str:
@@ -488,7 +484,6 @@ def get_package_long_description(package_name: str, verbose: bool = False) -> st
 
 
 def fetch_all_package_names(limit=None):
-
     url = PYPI_SIMPLE_URL
     print("Fetching fresh PyPI package index... (may take a few seconds)", file=sys.stderr)
 
@@ -566,7 +561,6 @@ def fetch_project_details(package_name, console=None, include_desc=False, verbos
                 summary = info.get('summary', '')
                 if summary:
                     md_parts.append(f"**Summary:** {summary}")
-                return '\n\n'.join(md_parts)
         else:
             if verbose:
                 logging.info(f"Cache miss for {package_name}, fetching from PyPI")
@@ -704,7 +698,7 @@ def main():
             flags = re.IGNORECASE if args.ignore_case else 0
             # Strip '"' & '"' from args.pattern
             args.pattern = args.pattern.strip('"').strip("'")
-            regex = re.compile(args.pattern, flags)
+            regex = re.compile(f"^{args.pattern}$", flags)
         except re.error as e:
             console.print(f"[red][bold]\nThe Regular Expression Pattern is Invalid:[/bold][/red]\n" +
                           f"  [yellow]- {e}[/yellow]\n")
@@ -712,13 +706,14 @@ def main():
 
         all_packages = get_packages(args.refresh_cache)
 
-        if args.refresh_cache and args.pattern == "":
+        if args.refresh_cache and args.pattern == '':
             return
 
         matches = [pkg for pkg in all_packages if regex.search(pkg)]
 
         if args.search:
             try:
+                args.search = args.search.strip('"').strip("'")
                 search_flags = re.IGNORECASE if args.ignore_case else 0
                 search_regex = re.compile(args.search, search_flags)
             except re.error as e:
@@ -730,6 +725,7 @@ def main():
             for pkg in matches:
                 desc = get_package_long_description(pkg, verbose=args.verbose)
                 if search_regex.search(desc):
+                    # print(desc)
                     filtered_matches.append(pkg)
             matches = filtered_matches
             print(f"After description filter: {len(matches)} matches", file=sys.stderr)
@@ -754,16 +750,17 @@ def main():
             if args.desc:
                 # String of i space padded to 4 digits
                 console.rule(f"[cyan]{i}.[/] [bold]{pkg}[/bold]")
-                details_md = fetch_project_details(pkg, console=console, include_desc=args.full_desc, verbose=args.verbose)
+                details_md = fetch_project_details(pkg, console=console, include_desc=args.full_desc,
+                                                   verbose=args.verbose)
                 if details_md:
                     # Filter out '.. image::' from details_md
                     details_md = '\n'.join([line for line in details_md.split('\n')
-                                            if not (line.startswith('.. image::')     or
-                                                    line.startswith('   :height: ')   or
-                                                    line.startswith('   :width: ')    or
-                                                    line.startswith('   :alt: ')      or
+                                            if not (line.startswith('.. image::') or
+                                                    line.startswith('   :height: ') or
+                                                    line.startswith('   :width: ') or
+                                                    line.startswith('   :alt: ') or
                                                     line.startswith(':raw-html-m2r:') or
-                                                    line.startswith('   :target: ')   or
+                                                    line.startswith('   :target: ') or
                                                     line == '|')])
                     details_md = re.sub(
                         r'\\?\s*:raw-html-m2r:\s*(`[^`]+`)\\?\s*',
@@ -774,7 +771,8 @@ def main():
                     details_md = re.sub(r'`<br>`', r'\n\n', details_md, flags=re.MULTILINE)
                     details_md = re.sub(r'#\.', r'*', details_md, flags=re.MULTILINE)
                     details_md = re.sub(r'\\ ', r' ', details_md, flags=re.MULTILINE)
-                    details_md = re.sub(r'(^\.\.\s+([^:]+\:)\s+(https?://[^\s]+))', r' - \2 `\3`', details_md, flags=re.MULTILINE)
+                    details_md = re.sub(r'(^\.\.\s+([^:]+\:)\s+(https?://[^\s]+))', r' - \2 `\3`', details_md,
+                                        flags=re.MULTILINE)
                     details_md = re.sub(r'<#', r'<\#', details_md, flags=re.MULTILINE)
                     details_md = re.sub(r'>_', r'>', details_md, flags=re.MULTILINE)
                     details_md = re.sub(r'>`_', r'>`', details_md, flags=re.MULTILINE)
